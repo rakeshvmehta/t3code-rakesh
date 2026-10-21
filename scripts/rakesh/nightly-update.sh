@@ -158,8 +158,6 @@ old_head="$(git -C "$REPO" rev-parse "$BRANCH")"
 cleanup_worktree
 git -C "$REPO" worktree add --detach "$WORKTREE" "$old_head"
 cd "$WORKTREE"
-export GIT_AUTHOR_NAME="Rakesh Mehta" GIT_COMMITTER_NAME="Rakesh Mehta"
-export GIT_AUTHOR_EMAIL="rakesh@zarnaai.com" GIT_COMMITTER_EMAIL="rakesh@zarnaai.com"
 
 if ! git merge --no-ff --no-edit -m "rakesh: merge upstream $tag" "$tag"; then
   conflicted="$(git diff --name-only --diff-filter=U)"
