@@ -67,8 +67,7 @@ done
 iconutil -c icns "$iconset" -o "$app/Contents/Resources/icon.icns"
 
 # electron-builder leaves an unsigned build with only Electron's linker
-# signature, which does not seal the bundle. Seal it ad hoc so it verifies.
-codesign --force --deep --sign - "$app"
-codesign --verify --deep --strict "$app"
+# signature, which does not seal the bundle. Seal and sign it.
+rakesh_sign_app "$app"
 
 echo "build.sh: built $app ($version)"
