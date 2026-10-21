@@ -8,6 +8,7 @@ import {
   type SidebarListMarker,
   type SidebarSection,
 } from "./Sidebar.logic";
+import { projectSectionedActiveArea } from "./sidebarSections/sidebarSections.list";
 
 const stationary = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 const hidden = { ...stationary, scaleY: 0 };
@@ -177,7 +178,15 @@ export function createSidebarSortingStrategy(input: {
     marker("pinned-header");
     projected.push(...groups.pinned);
     marker("pinned-divider");
-    section("active");
+    const sectionedActive = projectSectionedActiveArea({
+      items,
+      activeKey: active.key,
+      overId: sidebarListItemId(over),
+      targetSection: target.section,
+      order,
+    });
+    if (sectionedActive) projected.push(...sectionedActive);
+    else section("active");
     if (items.some((item) => item.kind === "marker" && item.marker === "working-header")) {
       marker("working-header");
       projected.push(...groups.working);

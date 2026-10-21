@@ -1,4 +1,5 @@
 import { useLocalStorage } from "../../hooks/useLocalStorage";
+import { randomUUID } from "../../lib/utils";
 import {
   EMPTY_SIDEBAR_SECTIONS_STATE,
   SIDEBAR_SECTIONS_STORAGE_KEY,
@@ -22,7 +23,7 @@ export function useSidebarSections() {
   return {
     state,
     add: (name: string) => {
-      const id = crypto.randomUUID();
+      const id = randomUUID();
       setState((current) => addSection(current, id, name));
       return id;
     },
