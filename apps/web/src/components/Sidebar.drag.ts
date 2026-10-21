@@ -8,7 +8,10 @@ import {
   type SidebarListMarker,
   type SidebarSection,
 } from "./Sidebar.logic";
-import { projectSectionedActiveArea } from "./sidebarSections/sidebarSections.list";
+import {
+  isSectionHeaderId,
+  projectSectionedActiveArea,
+} from "./sidebarSections/sidebarSections.list";
 
 const stationary = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 const hidden = { ...stationary, scaleY: 0 };
@@ -79,6 +82,21 @@ export function createSidebarCollisionDetection(
           if (target)
             collisions = [target, ...collisions.filter((collision) => collision !== target)];
         }
+      }
+    }
+    // Droppables are measured before the drag opens label space, so a short
+    // section header's old rect sits under the Active label. Use where it is drawn.
+    if (pointer && boundarySection !== "pinned") {
+      const drawnHeader = args.droppableContainers.find((container) => {
+        if (!isSectionHeaderId(String(container.id))) return false;
+        const rect = container.node.current?.getBoundingClientRect();
+        return rect !== undefined && pointer.y >= rect.top && pointer.y < rect.bottom;
+      });
+      if (drawnHeader) {
+        collisions = [
+          { id: drawnHeader.id, data: { droppableContainer: drawnHeader, value: 0 } },
+          ...collisions.filter((collision) => collision.id !== drawnHeader.id),
+        ];
       }
     }
     const nearest = collisions[0];

@@ -134,6 +134,22 @@ export function pruneAssignments(
     : { ...state, assignments: Object.fromEntries(kept) };
 }
 
+const environmentOfThreadKey = (threadKey: string) => threadKey.slice(0, threadKey.indexOf(":"));
+
+// The keys pruneAssignments may keep: every loaded chat, plus any assigned chat
+// whose environment has no loaded chats at all, since it may only be offline.
+export function resolveLiveThreadKeys(
+  state: SidebarSectionsState,
+  loadedThreadKeys: readonly string[],
+): ReadonlySet<string> {
+  const live = new Set(loadedThreadKeys);
+  const loadedEnvironments = new Set(loadedThreadKeys.map(environmentOfThreadKey));
+  for (const threadKey of Object.keys(state.assignments)) {
+    if (!loadedEnvironments.has(environmentOfThreadKey(threadKey))) live.add(threadKey);
+  }
+  return live;
+}
+
 export function sectionIdForThread(state: SidebarSectionsState, threadKey: string): string | null {
   const sectionId = state.assignments[threadKey];
   return sectionId !== undefined && hasSection(state, sectionId) ? sectionId : null;

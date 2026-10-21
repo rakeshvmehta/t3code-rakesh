@@ -280,6 +280,7 @@ import {
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
+import { useSidebarSectionsController } from "./sidebarSections/useSidebarSectionsController";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuShortcut, MenuTrigger } from "./ui/menu";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { MiddleTruncate } from "./ui/middle-truncate";
@@ -3010,7 +3011,7 @@ export default function Sidebar() {
     renderedSettledThreads,
     visibleSnoozedThreads,
     visibleWorkingThreads,
-    orderedThreadKeys,
+    orderedThreadKeys: upstreamOrderedThreadKeys,
     threadByKey,
     settledThreadKeys,
     snoozedThreadKeys,
@@ -3027,6 +3028,11 @@ export default function Sidebar() {
     optimisticDrop,
     routeThreadRef,
   });
+  const sectionsController = useSidebarSectionsController({
+    activeKeys,
+    routeThreadKey: routeRowThreadKey,
+  });
+  const orderedThreadKeys = sectionsController.orderThreadKeys(upstreamOrderedThreadKeys);
 
   const isSearchingThreads = threadSearchQuery.trim().length > 0;
   const threadSearchMatchByKey = new Map(
@@ -3546,7 +3552,7 @@ export default function Sidebar() {
         event.activatorEvent instanceof PointerEvent ? event.activatorEvent.clientY : null,
     });
   };
-  const sidebarListItemsFresh = ((): readonly SidebarListItem[] => {
+  const buildSidebarListItems = (mode: "visible" | "full"): readonly SidebarListItem[] => {
     const rowsOf = (
       list: readonly EnvironmentThreadShell[],
       section: SidebarSection,
@@ -3569,9 +3575,8 @@ export default function Sidebar() {
     const pinnedRows = rowsOf(pinnedThreads, "pinned");
     items.push(...pinnedRows);
     items.push({ kind: "marker", marker: "pinned-divider" });
-    const activeRows = rowsOf(activeThreads, "active");
     items.push({ kind: "marker", marker: "active-placeholder" });
-    items.push(...activeRows);
+    items.push(...sectionsController.activeItems(mode));
     if (workingThreads.length > 0) {
       items.push({ kind: "marker", marker: "working-header" });
       items.push(...rowsOf(visibleWorkingThreads, "working"));
@@ -3585,7 +3590,11 @@ export default function Sidebar() {
     items.push({ kind: "marker", marker: "settled-placeholder" });
     items.push(...settledRows);
     return items;
-  })();
+  };
+  const sidebarListItemsFresh = buildSidebarListItems("visible");
+  // Drop targets are resolved on every row, including those a collapsed
+  // section hides, so a drop never loses them from the active order.
+  const sidebarListItemsFull = buildSidebarListItems("full");
   // Thread shells update on every streamed event without moving rows. Keep the
   // list's identity until its order changes, so the sorting strategy, the
   // sortable context and every sortable row stay memoized meanwhile.
@@ -3629,8 +3638,17 @@ export default function Sidebar() {
   }, [listMotionPass]);
   const handleThreadDragOver = (event: DragOverEvent) => {
     const target = event.over
-      ? resolveSidebarDropTarget(sidebarListItems, String(event.active.id), String(event.over.id))
+      ? resolveSidebarDropTarget(
+          sidebarListItemsFull,
+          String(event.active.id),
+          String(event.over.id),
+        )
       : null;
+    sectionsController.trackDragOver(
+      sidebarListItemsFull,
+      String(event.active.id),
+      event.over ? String(event.over.id) : null,
+    );
     setDragState((current) =>
       current === null || current.activeKey !== String(event.active.id)
         ? current
@@ -3671,9 +3689,10 @@ export default function Sidebar() {
     if (source === undefined) return createSidebarCollisionDetection(() => false);
     return createSidebarCollisionDetection(
       (id) => {
-        const target = resolveSidebarDropTarget(sidebarListItems, draggedThreadKey, id);
+        const target = resolveSidebarDropTarget(sidebarListItemsFull, draggedThreadKey, id);
         if (target === null) return false;
         return (
+          sectionsController.changesSection(sidebarListItemsFull, draggedThreadKey, id) ||
           planSidebarThreadDrop({
             activeKey: draggedThreadKey,
             activeSection: draggedFromSection,
@@ -3686,7 +3705,7 @@ export default function Sidebar() {
             pinnedOrder: pinnedKeys,
             pinnedKeysById,
             reorderableKeys: draggableThreadKeys,
-            activeOrder: activeKeys,
+            activeOrder: sectionsController.activeOrder,
             activeKeysById,
             activeReorderableKeys: activeReorderableThreadKeys,
             activeTimeOrdered: workingShelfEnabled,
@@ -3705,9 +3724,17 @@ export default function Sidebar() {
     const target =
       event.over === null
         ? null
-        : resolveSidebarDropTarget(sidebarListItems, activeKey, String(event.over.id));
+        : resolveSidebarDropTarget(sidebarListItemsFull, activeKey, String(event.over.id));
     const activeThread = threadByKey.get(activeKey);
     if (activeSection === undefined || target === null || activeThread === undefined) return;
+    if (event.over !== null) {
+      sectionsController.applyDrop(
+        sidebarListItemsFull,
+        activeKey,
+        String(event.over.id),
+        threads.map(threadShellKey),
+      );
+    }
     const threadRef = scopeThreadRef(activeThread.environmentId, activeThread.id);
     const plan = planSidebarThreadDrop({
       activeKey,
@@ -3721,7 +3748,7 @@ export default function Sidebar() {
       pinnedOrder: pinnedKeys,
       pinnedKeysById,
       reorderableKeys: draggableThreadKeys,
-      activeOrder: activeKeys,
+      activeOrder: sectionsController.activeOrder,
       activeKeysById,
       activeReorderableKeys: activeReorderableThreadKeys,
       activeTimeOrdered: workingShelfEnabled,
@@ -4687,6 +4714,7 @@ export default function Sidebar() {
                 </Combobox>
               }
               onNewProject={openAddProjectCommandPalette}
+              onNewSection={sectionsController.startNewSection}
               onNewThread={handleNewThreadClick}
               newThreadDisabled={projects.length === 0}
               newThreadShortcutLabel={newThreadShortcutLabel}
@@ -4965,6 +4993,7 @@ export default function Sidebar() {
                                 label="Active"
                                 showHint={
                                   from !== null &&
+                                  !sectionsController.hasCustomSections &&
                                   (activeThreads.length === 0 ||
                                     (from === "active" &&
                                       activeThreads.length === 1 &&
@@ -5051,6 +5080,24 @@ export default function Sidebar() {
                               />,
                             );
                             break;
+                          default: {
+                            const header = sectionsController.renderHeader(
+                              item.marker,
+                              from !== null,
+                            );
+                            if (header !== null) {
+                              items.push(
+                                <SortableSidebarMarker
+                                  key={item.marker}
+                                  marker={item.marker}
+                                  data-testid={`sidebar-${item.marker}`}
+                                  className="mx-0.5 h-8"
+                                >
+                                  {header}
+                                </SortableSidebarMarker>,
+                              );
+                            }
+                          }
                         }
                       }
                       return items;

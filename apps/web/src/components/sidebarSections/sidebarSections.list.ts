@@ -1,6 +1,7 @@
 import {
   resolveSidebarDropTarget,
   sidebarListItemId,
+  sidebarMarkerId,
   type SidebarListItem,
   type SidebarListMarker,
 } from "../Sidebar.logic";
@@ -122,4 +123,28 @@ export function projectSectionedActiveArea(input: {
   while (at < area.length && area[at]!.kind === "thread" && rankOf(area[at]!) <= rank) at += 1;
   area.splice(at, 0, { kind: "thread", key: activeKey, section: "active" });
   return area;
+}
+
+// Keyboard traversal and jump hints walk this list, so it must follow the
+// rendered section order. The active chats are one contiguous run in it.
+export function orderSidebarThreadKeys(
+  orderedKeys: readonly string[],
+  activeKeys: readonly string[],
+  visibleActiveKeys: readonly string[],
+): readonly string[] {
+  const activeKeySet = new Set(activeKeys);
+  const first = orderedKeys.findIndex((key) => activeKeySet.has(key));
+  if (first === -1) return orderedKeys;
+  return [
+    ...orderedKeys.slice(0, first),
+    ...visibleActiveKeys,
+    ...orderedKeys.slice(first + activeKeys.length),
+  ];
+}
+
+const CUSTOM_SECTION_ID_PREFIX = sidebarMarkerId(customSectionMarker(""));
+const CHATS_HEADER_ID = sidebarMarkerId("chats-header");
+
+export function isSectionHeaderId(id: string): boolean {
+  return id === CHATS_HEADER_ID || id.startsWith(CUSTOM_SECTION_ID_PREFIX);
 }

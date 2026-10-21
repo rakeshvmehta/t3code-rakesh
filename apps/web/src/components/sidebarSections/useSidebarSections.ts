@@ -10,6 +10,7 @@ import {
   moveSection,
   pruneAssignments,
   renameSection,
+  resolveLiveThreadKeys,
   toggleSectionCollapsed,
 } from "./sidebarSections.logic";
 
@@ -33,10 +34,12 @@ export function useSidebarSections() {
     toggle: (id: string | "chats") => setState((current) => toggleSectionCollapsed(current, id)),
     // Writes double as the lazy prune point: a user-driven drop only happens
     // once the thread list has loaded, so dead keys can be dropped safely.
-    assign: (threadKey: string, sectionId: string | null, liveThreadKeys?: ReadonlySet<string>) =>
+    assign: (threadKey: string, sectionId: string | null, loadedThreadKeys?: readonly string[]) =>
       setState((current) => {
         const assigned = assignThread(current, threadKey, sectionId);
-        return liveThreadKeys ? pruneAssignments(assigned, liveThreadKeys) : assigned;
+        return loadedThreadKeys
+          ? pruneAssignments(assigned, resolveLiveThreadKeys(assigned, loadedThreadKeys))
+          : assigned;
       }),
   };
 }

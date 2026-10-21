@@ -10,6 +10,7 @@ import {
   moveSection,
   pruneAssignments,
   renameSection,
+  resolveLiveThreadKeys,
   sectionIdForThread,
   toggleSectionCollapsed,
   type SidebarSectionsState,
@@ -150,5 +151,19 @@ describe("decodeSidebarSectionsState", () => {
     ["array", "[]"],
   ])("falls back to the empty state when the value is %s", (_label, raw) => {
     expect(decodeSidebarSectionsState(raw)).toEqual(EMPTY_SIDEBAR_SECTIONS_STATE);
+  });
+});
+
+describe("resolveLiveThreadKeys", () => {
+  it("keeps assignments from environments that are not loaded, so offline chats survive pruning", () => {
+    const state: SidebarSectionsState = {
+      ...twoSections(),
+      assignments: { "env1:live": "a", "env1:deleted": "a", "env2:offline": "b" },
+    };
+    const live = resolveLiveThreadKeys(state, ["env1:live", "env1:other"]);
+    expect(pruneAssignments(state, live).assignments).toEqual({
+      "env1:live": "a",
+      "env2:offline": "b",
+    });
   });
 });

@@ -17,6 +17,7 @@ import {
 import {
   buildActiveSectionItems,
   customSectionMarker,
+  orderSidebarThreadKeys,
   parseCustomSectionMarker,
   projectSectionedActiveArea,
   resolveDropSectionId,
@@ -255,5 +256,22 @@ describe("projectSectionedActiveArea", () => {
       order: [],
     });
     expect(ids(projected!)).toEqual([A, "t4", B, "t3", CHATS, "t1", "t5"]);
+  });
+});
+
+describe("orderSidebarThreadKeys", () => {
+  it("replaces the active run with the visible section order", () => {
+    expect(
+      orderSidebarThreadKeys(
+        ["p1", "t1", "t2", "t3", "w1", "s1"],
+        ["t1", "t2", "t3"],
+        ["t2", "t1"],
+      ),
+    ).toEqual(["p1", "t2", "t1", "w1", "s1"]);
+  });
+
+  it("returns the same list without active chats", () => {
+    const keys = ["p1", "s1"];
+    expect(orderSidebarThreadKeys(keys, [], [])).toBe(keys);
   });
 });
