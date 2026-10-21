@@ -24,7 +24,8 @@ pnpm exec vp test run \
   apps/web/src/components/sidebarSections/ \
   apps/web/src/components/Sidebar.logic.test.ts \
   apps/web/src/components/Sidebar.drag.test.ts
-(cd apps/web && pnpm exec vp test run --project browser src/components/Sidebar)
+(cd apps/web && pnpm exec playwright install chromium-headless-shell >/dev/null &&
+  pnpm exec vp test run --project browser src/components/Sidebar)
 (cd scripts && pnpm exec vp test run --config ../vite.config.ts --dir . rakesh/identity.test.ts)
 
 version="$(rakesh_base_tag)"

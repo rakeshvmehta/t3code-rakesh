@@ -1,0 +1,113 @@
+# Merge brief: upstream release into `rakesh/main`
+
+You are resolving a `git merge` of an upstream T3 Code release tag into this
+personal fork. The merge is already in progress in your current directory and
+has conflicts. Nobody is watching; work carefully and stop rather than guess.
+
+## What is ours
+
+Our patch set is every non-merge commit whose subject starts with `rakesh:`:
+
+```sh
+git log --no-merges --grep '^rakesh:' --format='%h %s' MERGE_HEAD..HEAD
+```
+
+Read those commits (`git show <sha>`) before touching a conflict. Our code
+lives mostly in new files, and those almost never conflict:
+
+- `apps/web/src/components/sidebarSections/**` (the feature)
+- `scripts/rakesh/**`, `docs/rakesh/**` (build, install, nightly, this file)
+
+Our edits to upstream files are deliberately small:
+
+- `apps/web/src/components/Sidebar.tsx`: `useSidebarSectionsController(...)`
+  after `useSidebarThreads(...)`; `orderedThreadKeys` routed through
+  `sectionsController.orderThreadKeys`; the active rows come from
+  `sectionsController.activeItems(mode)` inside `buildSidebarListItems`;
+  `sidebarListItemsFull`; the three `resolveSidebarDropTarget` calls use
+  `sidebarListItemsFull`; `trackDragOver`, `changesSection`, `applyDrop`,
+  `activeOrder: sectionsController.activeOrder`; the `default:` marker branch
+  rendering `sectionsController.renderHeader` inside `SortableSidebarMarker`;
+  the Active placeholder hint is hidden when custom sections exist;
+  `onNewSection` on `SidebarThreadHeader`.
+- `apps/web/src/components/Sidebar.logic.ts`: two extra `SidebarListMarker`
+  members, `` `custom-section:${string}` `` and `"chats-header"`.
+- `apps/web/src/components/Sidebar.drag.ts`: the sorting strategy uses
+  `projectSectionedActiveArea` for the active area; collision detection prefers
+  a section header under the pointer at its drawn position.
+- `apps/web/src/components/sidebar/SidebarThreadHeader.tsx`: optional
+  `onNewSection` prop rendering `NewSectionButton` between the project filter
+  and the Add project button.
+- `scripts/build-desktop-artifact.ts`: `resolveDesktopAppId()` and the
+  `T3CODE_DESKTOP_PRODUCT_NAME` override in `resolveDesktopProductName`.
+- `.gitignore`: `release-rakesh/`.
+
+## The contract (must still hold after the merge)
+
+- A "New section" button (lucide `ListPlusIcon`, tooltip "New section") sits
+  in the sidebar header between the filter control and the new-project button.
+- Clicking it adds a section at the end of the custom sections with its name
+  input focused. Enter saves; Esc or an empty name cancels.
+- Chats are dragged into, out of and between sections. A section never changes
+  a chat's project, and one section can hold chats from several projects.
+- Order: Pinned, custom sections (user order), "Chats" (chats with no
+  section), then upstream's Working / Snoozed shelves, then Settled.
+- Custom sections and "Chats" collapse like the Settled shelf; collapsed shows
+  a count; the open (route) chat stays visible in a collapsed section.
+- Pinned wins and Settled wins (also snoozed and working): such a chat shows
+  only in that shelf and returns to its remembered section afterwards.
+- New chats start in "Chats". Header context menu: Rename, Move up, Move down,
+  Delete. Deleting a section moves its chats to "Chats".
+- Sections live in localStorage (`t3code:rakesh:sidebar-sections:v1`) on this
+  Mac only.
+- With no custom sections the sidebar is identical to upstream.
+- Everything else (badges, project chips, pin, snooze, settle, archive,
+  search, keyboard navigation) behaves exactly as upstream.
+- The app builds as "T3 Code (Rakesh)" / `com.rakesh.t3code` with no update
+  feed.
+
+## How to resolve
+
+1. Upstream wins on everything that is not ours. When upstream rewrote code we
+   hook into, take upstream's version and re-apply our small hook to the new
+   code. Never revert, drop or "simplify" upstream changes.
+2. Keep our hooks minimal. Put any new logic in `sidebarSections/`, not in
+   `Sidebar.tsx`.
+3. Never edit `apps/server`, `packages/contracts`, persistence or migrations.
+4. Resolve every conflicted file, remove all conflict markers, and `git add`
+   them. Do not commit, do not push, do not abort the merge yourself; the
+   nightly script does that from your result.
+5. Run our tests and make them pass:
+
+   ```sh
+   pnpm install --frozen-lockfile
+   pnpm exec vp test run apps/web/src/components/sidebarSections/ \
+     apps/web/src/components/Sidebar.logic.test.ts \
+     apps/web/src/components/Sidebar.drag.test.ts
+   (cd apps/web && pnpm exec vp test run --project browser src/components/Sidebar)
+   (cd scripts && pnpm exec vp test run --config ../vite.config.ts --dir . rakesh/identity.test.ts)
+   (cd apps/web && pnpm run typecheck)
+   ```
+
+   If upstream changed an API a test of ours relies on, update our test or
+   code to the new API while keeping the contract. Do not delete or skip
+   tests to get green.
+
+## When to stop
+
+Abort instead of guessing if any of these is true:
+
+- You cannot tell how to keep both upstream's change and our behavior.
+- Upstream now ships its own sidebar sections/folders/groups feature, or
+  removed or fundamentally replaced the flat sidebar list, drag and drop, or
+  the active shelf our feature hooks into.
+- The tests above still fail after a reasonable fix.
+- Resolving would require touching server, contracts or persistence code.
+
+## Report
+
+Write exactly one line to the result file named at the end of your prompt:
+
+- `RESOLVED: <one-line summary>` when every conflict is resolved, staged and
+  all the tests above pass, or
+- `ABORT: <reason>` otherwise.
