@@ -103,7 +103,11 @@ install_staged() {
     relaunch=1
   fi
   mkdir -p "$(dirname "$TARGET")"
-  RAKESH_SOURCE_APP="$STAGED_APP" "$REPO/scripts/rakesh/install.sh" "$TARGET"
+  # Callers use `if`/`||`, which disables set -e here, so check explicitly.
+  if ! RAKESH_SOURCE_APP="$STAGED_APP" "$REPO/scripts/rakesh/install.sh" "$TARGET"; then
+    log "install of $tag failed; keeping it staged"
+    return 1
+  fi
   rm -rf "$STATE_DIR/staged"
   log "installed $tag at $TARGET"
   [[ "$relaunch" == 1 ]] && open "$TARGET"
@@ -130,8 +134,6 @@ if [[ "${RAKESH_NIGHTLY_FORCE:-0}" != 1 && "$(cat "$STATE_DIR/last-run" 2>/dev/n
   trap - ERR
   exit 0
 fi
-echo "$TODAY" >"$STATE_DIR/last-run"
-
 git -C "$REPO" fetch upstream --tags --force --quiet
 
 tag="${RAKESH_NIGHTLY_TAG:-}"
@@ -143,6 +145,7 @@ if [[ -z "$tag" ]]; then
 fi
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "unexpected release tag '$tag'"
 git -C "$REPO" rev-parse --verify --quiet "refs/tags/$tag" >/dev/null || fail "tag $tag not fetched"
+echo "$TODAY" >"$STATE_DIR/last-run"
 
 if git -C "$REPO" merge-base --is-ancestor "$tag" "$BRANCH"; then
   log "$BRANCH already contains $tag; up to date, nothing to do"
@@ -155,8 +158,8 @@ old_head="$(git -C "$REPO" rev-parse "$BRANCH")"
 cleanup_worktree
 git -C "$REPO" worktree add --detach "$WORKTREE" "$old_head"
 cd "$WORKTREE"
-git config user.name "Rakesh Mehta"
-git config user.email "rakesh@zarnaai.com"
+export GIT_AUTHOR_NAME="Rakesh Mehta" GIT_COMMITTER_NAME="Rakesh Mehta"
+export GIT_AUTHOR_EMAIL="rakesh@zarnaai.com" GIT_COMMITTER_EMAIL="rakesh@zarnaai.com"
 
 if ! git merge --no-ff --no-edit -m "rakesh: merge upstream $tag" "$tag"; then
   conflicted="$(git diff --name-only --diff-filter=U)"
@@ -164,20 +167,25 @@ if ! git merge --no-ff --no-edit -m "rakesh: merge upstream $tag" "$tag"; then
   [[ -x "$CLAUDE_BIN" ]] || fail "conflicts and no agent at $CLAUDE_BIN"
   result_file="$STATE_DIR/merge-result-$tag.txt"
   rm -f "$result_file"
-  prompt="$(cat "$REPO/docs/rakesh/MERGE_INSTRUCTIONS.md")
-
-Merging tag: $tag into $BRANCH. Conflicted files:
-$conflicted
-
-Result file: $result_file"
+  prompt_file="$STATE_DIR/merge-prompt.md"
+  {
+    cat "$REPO/docs/rakesh/MERGE_INSTRUCTIONS.md"
+    printf '\nMerging tag: %s into %s. Conflicted files:\n%s\n\nResult file: %s\n' \
+      "$tag" "$BRANCH" "$conflicted" "$result_file"
+  } >"$prompt_file"
   log "running merge agent"
-  "$CLAUDE_BIN" -p --permission-mode acceptEdits \
+  # The prompt goes in on stdin: the variadic tool flags would swallow it as
+  # an argument. Bash is limited to read-only git, `git add`/`checkout` and the
+  # exact test commands in the brief, so the agent cannot commit, push or reset.
+  "$CLAUDE_BIN" -p --permission-mode acceptEdits --add-dir "$STATE_DIR" \
     --allowedTools "Read" "Edit" "Write" "Glob" "Grep" "Bash(git status:*)" "Bash(git diff:*)" \
     "Bash(git log:*)" "Bash(git show:*)" "Bash(git add:*)" "Bash(git checkout:*)" \
-    "Bash(git ls-files:*)" "Bash(git rev-parse:*)" "Bash(pnpm:*)" "Bash(cd:*)" "Bash(ls:*)" \
+    "Bash(git ls-files:*)" "Bash(git rev-parse:*)" "Bash(cd:*)" "Bash(ls:*)" \
+    "Bash(pnpm install --frozen-lockfile)" "Bash(pnpm exec vp test run:*)" \
+    "Bash(pnpm run typecheck)" \
     --disallowedTools "Bash(git push:*)" "Bash(git commit:*)" "Bash(git merge:*)" \
-    "Bash(git reset:*)" "Bash(git rebase:*)" \
-    "$prompt" </dev/null &
+    "Bash(git reset:*)" "Bash(git rebase:*)" "Bash(pnpm exec git:*)" "Bash(pnpm dlx:*)" \
+    <"$prompt_file" &
   agent_pid=$!
   # A 90 minute ceiling for the agent.
   (sleep 5400 && kill -TERM "$agent_pid" 2>/dev/null) &

@@ -3701,7 +3701,12 @@ export default function Sidebar() {
             supportsSettlement:
               serverConfigs.get(source.environmentId)?.environment.capabilities.threadSettlement ===
               true,
-            target,
+            target: sectionsController.planTarget(
+              sidebarListItemsFull,
+              target,
+              draggedThreadKey,
+              id,
+            ),
             pinnedOrder: pinnedKeys,
             pinnedKeysById,
             reorderableKeys: draggableThreadKeys,
@@ -3744,7 +3749,12 @@ export default function Sidebar() {
       supportsSettlement:
         serverConfigs.get(activeThread.environmentId)?.environment.capabilities.threadSettlement ===
         true,
-      target,
+      target: sectionsController.planTarget(
+        sidebarListItemsFull,
+        target,
+        activeKey,
+        String(event.over!.id),
+      ),
       pinnedOrder: pinnedKeys,
       pinnedKeysById,
       reorderableKeys: draggableThreadKeys,

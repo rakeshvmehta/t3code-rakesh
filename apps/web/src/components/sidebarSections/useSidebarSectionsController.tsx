@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 
-import type { SidebarListItem, SidebarListMarker } from "../Sidebar.logic";
+import type { SidebarDropTarget, SidebarListItem, SidebarListMarker } from "../Sidebar.logic";
 import { SidebarCustomSectionHeader } from "./SidebarSectionHeader";
 import {
   buildActiveSectionItems,
@@ -8,7 +8,11 @@ import {
   parseCustomSectionMarker,
   resolveDropSectionId,
 } from "./sidebarSections.list";
-import { groupActiveThreadKeys, sectionIdForThread } from "./sidebarSections.logic";
+import {
+  groupActiveThreadKeys,
+  sectionIdForThread,
+  upstreamActiveOrder,
+} from "./sidebarSections.logic";
 import { useSidebarSections } from "./useSidebarSections";
 
 const NEW_SECTION_NAME = "New section";
@@ -89,8 +93,28 @@ export function useSidebarSectionsController(input: {
       mode === "visible"
         ? visibleActiveItems
         : buildActiveSectionItems(groups, routeThreadKey, "full"),
-    // The order drops are planned against: the rendered grouping, hidden rows included.
-    activeOrder: hasCustomSections ? groups.flatMap((group) => group.threadKeys) : activeKeys,
+    // Drops are planned against upstream's order (see planTarget), so a
+    // reorder writes only the moved chat's key.
+    activeOrder: activeKeys,
+    planTarget: (
+      fullItems: readonly SidebarListItem[],
+      target: SidebarDropTarget,
+      activeKey: string,
+      overId: string,
+    ): SidebarDropTarget => {
+      if (!hasCustomSections || target.section !== "active") return target;
+      const dropped = resolveDropSectionId(fullItems, activeKey, overId);
+      return {
+        ...target,
+        activeOrder: upstreamActiveOrder({
+          state,
+          upstreamKeys: activeKeys,
+          groupedOrder: target.activeOrder,
+          movedKey: activeKey,
+          movedSectionId: dropped === undefined ? sectionIdForThread(state, activeKey) : dropped,
+        }),
+      };
+    },
     orderThreadKeys: (orderedKeys: readonly string[]) =>
       hasCustomSections
         ? orderSidebarThreadKeys(

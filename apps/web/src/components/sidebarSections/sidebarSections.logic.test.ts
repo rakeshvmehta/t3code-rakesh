@@ -13,6 +13,7 @@ import {
   resolveLiveThreadKeys,
   sectionIdForThread,
   toggleSectionCollapsed,
+  upstreamActiveOrder,
   type SidebarSectionsState,
 } from "./sidebarSections.logic.ts";
 
@@ -165,5 +166,76 @@ describe("resolveLiveThreadKeys", () => {
       "env1:live": "a",
       "env2:offline": "b",
     });
+  });
+});
+
+describe("upstreamActiveOrder", () => {
+  // Upstream order t1..t5; A holds t2 and t4, B holds t3; t1 and t5 are in Chats.
+  const upstreamKeys = ["t1", "t2", "t3", "t4", "t5"];
+  const state = (): SidebarSectionsState => {
+    let next = twoSections();
+    next = assignThread(next, "t2", "a");
+    next = assignThread(next, "t4", "a");
+    return assignThread(next, "t3", "b");
+  };
+
+  it("moves only the dropped chat, before its next neighbour in the section", () => {
+    // Rendered: A [t4, t2] after dropping t4 above t2, then B [t3], Chats [t1, t5].
+    expect(
+      upstreamActiveOrder({
+        state: state(),
+        upstreamKeys,
+        groupedOrder: ["t4", "t2", "t3", "t1", "t5"],
+        movedKey: "t4",
+        movedSectionId: "a",
+      }),
+    ).toEqual(["t1", "t4", "t2", "t3", "t5"]);
+  });
+
+  it("places a chat dropped last in a section just after the previous one", () => {
+    expect(
+      upstreamActiveOrder({
+        state: state(),
+        upstreamKeys,
+        groupedOrder: ["t2", "t4", "t1", "t3", "t5"],
+        movedKey: "t1",
+        movedSectionId: "a",
+      }),
+    ).toEqual(["t2", "t3", "t4", "t1", "t5"]);
+  });
+
+  it("keeps upstream order when the chat is alone in its section", () => {
+    expect(
+      upstreamActiveOrder({
+        state: state(),
+        upstreamKeys,
+        groupedOrder: ["t2", "t4", "t3", "t5", "t1"],
+        movedKey: "t5",
+        movedSectionId: "c",
+      }),
+    ).toEqual(upstreamKeys);
+  });
+
+  it("puts a chat arriving from another shelf first when its section is empty", () => {
+    expect(
+      upstreamActiveOrder({
+        state: state(),
+        upstreamKeys,
+        groupedOrder: ["t2", "t4", "t3", "p1", "t1", "t5"],
+        movedKey: "p1",
+        movedSectionId: "c",
+      }),
+    ).toEqual(["p1", ...upstreamKeys]);
+  });
+
+  it("differs from upstream order only in the moved chat's position", () => {
+    const order = upstreamActiveOrder({
+      state: state(),
+      upstreamKeys,
+      groupedOrder: ["t2", "t4", "t3", "t5", "t1"],
+      movedKey: "t5",
+      movedSectionId: null,
+    });
+    expect(order.filter((key) => key !== "t5")).toEqual(["t1", "t2", "t3", "t4"]);
   });
 });

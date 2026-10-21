@@ -26,7 +26,9 @@ Our edits to upstream files are deliberately small:
   `sectionsController.activeItems(mode)` inside `buildSidebarListItems`;
   `sidebarListItemsFull`; the three `resolveSidebarDropTarget` calls use
   `sidebarListItemsFull`; `trackDragOver`, `changesSection`, `applyDrop`,
-  `activeOrder: sectionsController.activeOrder`; the `default:` marker branch
+  `activeOrder: sectionsController.activeOrder`, and both
+  `planSidebarThreadDrop` calls take
+  `target: sectionsController.planTarget(sidebarListItemsFull, target, key, overId)`; the `default:` marker branch
   rendering `sectionsController.renderHeader` inside `SortableSidebarMarker`;
   the Active placeholder hint is hidden when custom sections exist;
   `onNewSection` on `SidebarThreadHeader`.

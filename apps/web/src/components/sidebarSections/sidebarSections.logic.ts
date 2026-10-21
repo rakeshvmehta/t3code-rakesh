@@ -186,3 +186,35 @@ export function groupActiveThreadKeys(
     },
   ];
 }
+
+// Maps a drop's rendered (grouped) active order back onto upstream's order,
+// moving only the dropped chat: it lands just before its new next neighbour in
+// its section, or just after the previous one. Upstream's planner then writes
+// one order key instead of re-spreading every active chat.
+export function upstreamActiveOrder(input: {
+  readonly state: SidebarSectionsState;
+  readonly upstreamKeys: readonly string[];
+  readonly groupedOrder: readonly string[];
+  readonly movedKey: string;
+  readonly movedSectionId: string | null;
+}): readonly string[] {
+  const { state, upstreamKeys, groupedOrder, movedKey, movedSectionId } = input;
+  const siblings = groupedOrder.filter(
+    (key) => key === movedKey || sectionIdForThread(state, key) === movedSectionId,
+  );
+  const index = siblings.indexOf(movedKey);
+  if (index === -1) return groupedOrder;
+  const rest = upstreamKeys.filter((key) => key !== movedKey);
+  const next = siblings[index + 1];
+  const previous = siblings[index - 1];
+  const at =
+    next !== undefined
+      ? rest.indexOf(next)
+      : previous !== undefined
+        ? rest.indexOf(previous) + 1
+        : upstreamKeys.includes(movedKey)
+          ? upstreamKeys.indexOf(movedKey)
+          : 0;
+  if (at < 0) return groupedOrder;
+  return [...rest.slice(0, at), movedKey, ...rest.slice(at)];
+}
