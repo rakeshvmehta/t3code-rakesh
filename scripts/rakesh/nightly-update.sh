@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# Nightly: merge the latest stable upstream release into rakesh/main, build,
-# and install "T3 Code (Rakesh)". launchd runs it at 04:00, 04:30, 05:00 and
-# 05:30; only the first run of a day merges and builds, later runs retry
-# installing a build that was staged because a chat was still working.
+# Nightly update for "T3 Code (Rakesh)". Two modes:
+#   maintain (a checkout with an `upstream` remote): merge the latest stable
+#     upstream release into rakesh/main, build, push rakesh/main to origin
+#     (only after a good build), install.
+#   follow (a plain clone of the fork): fast-forward to origin's rakesh/main,
+#     build, install. No merge, no agent.
+# launchd runs it four times, 30 minutes apart; only the first run of a day
+# builds, later runs retry installing a build that was staged because a chat
+# was still working.
 #
 # Overrides (for testing): RAKESH_NIGHTLY_BRANCH, RAKESH_NIGHTLY_TAG,
 # RAKESH_NIGHTLY_INSTALL_TARGET, RAKESH_NIGHTLY_STATE_DIR,
-# RAKESH_NIGHTLY_FORCE=1 (ignore today's marker).
+# RAKESH_NIGHTLY_FORCE=1 (ignore today's marker), RAKESH_NIGHTLY_MODE.
 set -Eeuo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 REPO="$RAKESH_REPO_ROOT"
@@ -22,6 +27,11 @@ WORKTREE="$HOME/Library/Caches/t3code-rakesh/nightly-worktree"
 TODAY="$(date +%F)"
 CLAUDE_BIN="${RAKESH_CLAUDE_BIN:-$HOME/.local/bin/claude}"
 STATE_DB="$HOME/.t3/userdata/statev2.sqlite"
+if git -C "$REPO" remote get-url upstream >/dev/null 2>&1; then
+  MODE="${RAKESH_NIGHTLY_MODE:-maintain}"
+else
+  MODE="${RAKESH_NIGHTLY_MODE:-follow}"
+fi
 
 mkdir -p "$RAKESH_LOG_DIR" "$STATE_DIR" "$(dirname "$WORKTREE")"
 LOG="$RAKESH_LOG_DIR/nightly-$TODAY.log"
@@ -115,7 +125,20 @@ install_staged() {
   return 0
 }
 
-log "nightly start (branch $BRANCH, target $TARGET)"
+# Publishes rakesh/main so follower Macs pick it up. A failed push never blocks
+# the local install.
+publish() {
+  [[ "$MODE" == maintain && "$BRANCH" == rakesh/main ]] || return 0
+  git -C "$REPO" remote get-url origin >/dev/null 2>&1 || return 0
+  if git -C "$REPO" push --quiet origin "$BRANCH"; then
+    log "pushed $BRANCH to origin"
+  else
+    log "push of $BRANCH to origin failed"
+    rakesh_notify "Could not push $BRANCH to GitHub. Log: $LOG"
+  fi
+}
+
+log "nightly start ($MODE, branch $BRANCH, target $TARGET)"
 
 if [[ -d "$STAGED_APP" ]]; then
   if install_staged; then
@@ -134,6 +157,26 @@ if [[ "${RAKESH_NIGHTLY_FORCE:-0}" != 1 && "$(cat "$STATE_DIR/last-run" 2>/dev/n
   trap - ERR
   exit 0
 fi
+if [[ "$MODE" == follow ]]; then
+  git -C "$REPO" fetch --quiet origin "$BRANCH"
+  echo "$TODAY" >"$STATE_DIR/last-run"
+  old_head="$(git -C "$REPO" rev-parse "$BRANCH")"
+  new_head="$(git -C "$REPO" rev-parse FETCH_HEAD)"
+  if git -C "$REPO" merge-base --is-ancestor "$new_head" "$old_head"; then
+    log "$BRANCH already at origin; up to date, nothing to do"
+    trap - ERR
+    exit 0
+  fi
+  git -C "$REPO" merge-base --is-ancestor "$old_head" "$new_head" ||
+    fail "local $BRANCH has commits origin does not; not updating"
+  version="$(git -C "$REPO" show "$new_head:apps/desktop/package.json" |
+    /usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
+  tag="v$version-$(git -C "$REPO" rev-parse --short "$new_head")"
+  log "building origin $BRANCH at $tag"
+  cleanup_worktree
+  git -C "$REPO" worktree add --detach "$WORKTREE" "$new_head"
+  cd "$WORKTREE"
+else
 git -C "$REPO" fetch upstream --tags --force --quiet
 
 tag="${RAKESH_NIGHTLY_TAG:-}"
@@ -149,6 +192,7 @@ echo "$TODAY" >"$STATE_DIR/last-run"
 
 if git -C "$REPO" merge-base --is-ancestor "$tag" "$BRANCH"; then
   log "$BRANCH already contains $tag; up to date, nothing to do"
+  publish
   trap - ERR
   exit 0
 fi
@@ -199,6 +243,7 @@ if ! git merge --no-ff --no-edit -m "rakesh: merge upstream $tag" "$tag"; then
   fi
   git commit --no-edit
 fi
+fi
 new_head="$(git rev-parse HEAD)"
 
 log "building"
@@ -216,6 +261,7 @@ else
   git -C "$REPO" update-ref "refs/heads/$BRANCH" "$new_head" "$old_head"
 fi
 log "$BRANCH now at $(git -C "$REPO" rev-parse --short "$BRANCH")"
+publish
 cd "$REPO"
 cleanup_worktree
 
