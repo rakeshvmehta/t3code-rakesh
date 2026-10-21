@@ -55,6 +55,17 @@ if [[ -e "$app/Contents/Resources/app-update.yml" ]]; then
   exit 1
 fi
 
+# Our own Dock icon ("T3-R"), so this app is distinguishable from the official one.
+iconset="$(mktemp -d)/icon.iconset"
+mkdir -p "$iconset"
+for size in 16 32 128 256 512; do
+  sips -z "$size" "$size" "$RAKESH_REPO_ROOT/assets/rakesh/t3r-macos-1024.png" \
+    --out "$iconset/icon_${size}x${size}.png" >/dev/null
+  sips -z "$((size * 2))" "$((size * 2))" "$RAKESH_REPO_ROOT/assets/rakesh/t3r-macos-1024.png" \
+    --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$iconset" -o "$app/Contents/Resources/icon.icns"
+
 # electron-builder leaves an unsigned build with only Electron's linker
 # signature, which does not seal the bundle. Seal it ad hoc so it verifies.
 codesign --force --deep --sign - "$app"
