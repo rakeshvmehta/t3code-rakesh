@@ -172,9 +172,8 @@ if [[ "$MODE" == follow ]]; then
   fi
   git -C "$REPO" merge-base --is-ancestor "$old_head" "$new_head" ||
     fail "local $BRANCH has commits origin does not; not updating"
-  version="$(git -C "$REPO" show "$new_head:apps/desktop/package.json" |
-    /usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
-  tag="v$version-$(git -C "$REPO" rev-parse --short "$new_head")"
+  base_tag="$(git -C "$REPO" describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' "$new_head")"
+  tag="$base_tag-$(git -C "$REPO" rev-parse --short "$new_head")"
   log "building origin $BRANCH at $tag"
   cleanup_worktree
   git -C "$REPO" worktree add --detach "$WORKTREE" "$new_head"
