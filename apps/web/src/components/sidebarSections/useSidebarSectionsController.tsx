@@ -1,4 +1,7 @@
+import * as Schema from "effect/Schema";
 import { useState, type ReactNode } from "react";
+
+import { useLocalStorage } from "../../hooks/useLocalStorage";
 
 import type { SidebarDropTarget, SidebarListItem, SidebarListMarker } from "../Sidebar.logic";
 import { SidebarCustomSectionHeader } from "./SidebarSectionHeader";
@@ -16,6 +19,7 @@ import {
 import { useSidebarSections } from "./useSidebarSections";
 
 const NEW_SECTION_NAME = "New section";
+const PINNED_COLLAPSED_STORAGE_KEY = "t3code:rakesh:sidebar-pinned-collapsed:v1";
 
 // Everything Sidebar.tsx needs for custom sections, so its own edits stay a
 // handful of call sites. With no custom sections every output matches upstream.
@@ -30,6 +34,11 @@ export function useSidebarSectionsController(input: {
   // undefined: the pointer is not over the active area.
   const [dropTargetSectionId, setDropTargetSectionId] = useState<string | null | undefined>();
   const hasCustomSections = state.sections.length > 0;
+  const [pinnedCollapsed, setPinnedCollapsed] = useLocalStorage(
+    PINNED_COLLAPSED_STORAGE_KEY,
+    false,
+    Schema.Boolean,
+  );
   const groups = groupActiveThreadKeys(state, activeKeys);
   const visibleActiveItems = buildActiveSectionItems(groups, routeThreadKey, "visible");
 
@@ -145,6 +154,30 @@ export function useSidebarSectionsController(input: {
       const change = resolveChange(fullItems, activeKey, overId);
       if (change) sections.assign(activeKey, change.sectionId, loadedThreadKeys);
     },
+    // A collapsed Pinned shelf hides its rows except the open chat; the "full"
+    // list keeps them all so drops still plan against every pinned chat.
+    showsPinnedRow: (threadKey: string, mode: "visible" | "full") =>
+      mode === "full" || !pinnedCollapsed || threadKey === routeThreadKey,
+    // Pinned's header is a plain row above the sortable boundary marker, so the
+    // drag projection is unchanged.
+    renderPinnedHeader: (count: number, dragging: boolean, isDropTarget: boolean) =>
+      count === 0 ? null : (
+        <li key="rakesh-pinned-header" className="mx-0.5 h-8 list-none" data-thread-selection-safe>
+          <SidebarCustomSectionHeader
+            name="Pinned"
+            count={count}
+            expanded={!pinnedCollapsed}
+            onToggle={() => setPinnedCollapsed((collapsed) => !collapsed)}
+            dragging={dragging}
+            isDropTarget={isDropTarget}
+            testId="sidebar-pinned-section-toggle"
+            menu={null}
+            editing={false}
+            onCommitName={() => {}}
+            onCancelEdit={() => {}}
+          />
+        </li>
+      ),
     startNewSection: () => {
       const id = sections.add(NEW_SECTION_NAME);
       setEditing({ id, isNew: true });

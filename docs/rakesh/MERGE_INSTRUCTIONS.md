@@ -31,7 +31,10 @@ Our edits to upstream files are deliberately small:
   `target: sectionsController.planTarget(sidebarListItemsFull, target, key, overId)`; the `default:` marker branch
   rendering `sectionsController.renderHeader` inside `SortableSidebarMarker`;
   the Active placeholder hint is hidden when custom sections exist;
-  `onNewSection` on `SidebarThreadHeader`.
+  `onNewSection` on `SidebarThreadHeader`; pinned rows filtered through
+  `sectionsController.showsPinnedRow(key, mode)` in `buildSidebarListItems`;
+  the `pinned-header` case pushes `sectionsController.renderPinnedHeader(...)`
+  before the `SidebarDragBoundary`, whose label shows only when nothing is pinned.
 - `apps/web/src/components/Sidebar.logic.ts`: two extra `SidebarListMarker`
   members, `` `custom-section:${string}` `` and `"chats-header"`.
 - `apps/web/src/components/Sidebar.drag.ts`: the sorting strategy uses
@@ -62,7 +65,9 @@ Our edits to upstream files are deliberately small:
   Delete. Deleting a section moves its chats to "Chats".
 - Sections live in localStorage (`t3code:rakesh:sidebar-sections:v1`) on this
   Mac only.
-- With no custom sections the sidebar is identical to upstream.
+- "Chats" always shows its collapsible header, even with no custom sections.
+- Pinned shows a collapsible "Pinned" header (count when collapsed) whenever
+  there are pinned chats; collapsed, only the open chat stays visible.
 - Everything else (badges, project chips, pin, snooze, settle, archive,
   search, keyboard navigation) behaves exactly as upstream.
 - The app builds as "T3 Code (Rakesh)" / `com.rakesh.t3code` with no update

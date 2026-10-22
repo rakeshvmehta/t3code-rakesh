@@ -76,17 +76,16 @@ describe("section markers", () => {
 });
 
 describe("buildActiveSectionItems", () => {
-  it("emits only rows, exactly like upstream, when there are no custom sections", () => {
+  it("shows the Chats header even when there are no custom sections", () => {
     const groups = groupActiveThreadKeys(EMPTY_SIDEBAR_SECTIONS_STATE, ACTIVE_KEYS);
-    expect(buildActiveSectionItems(groups, null, "visible")).toEqual(
-      ACTIVE_KEYS.map((key) => row(key)),
-    );
+    expect(ids(buildActiveSectionItems(groups, null, "visible"))).toEqual([CHATS, ...ACTIVE_KEYS]);
   });
 
-  it("ignores a stale Chats collapse flag when there are no custom sections", () => {
+  it("collapses Chats when there are no custom sections, keeping the open chat", () => {
     const state = toggleSectionCollapsed(EMPTY_SIDEBAR_SECTIONS_STATE, "chats");
     const groups = groupActiveThreadKeys(state, ACTIVE_KEYS);
-    expect(buildActiveSectionItems(groups, null, "visible")).toHaveLength(ACTIVE_KEYS.length);
+    expect(ids(buildActiveSectionItems(groups, "t3", "visible"))).toEqual([CHATS, "t3"]);
+    expect(ids(buildActiveSectionItems(groups, null, "full"))).toEqual([CHATS, ...ACTIVE_KEYS]);
   });
 
   it("orders each header before its rows, custom sections first, then Chats", () => {
@@ -208,17 +207,16 @@ describe("drop targets on the full list", () => {
 });
 
 describe("projectSectionedActiveArea", () => {
-  it("is null without section headers, so upstream projection applies", () => {
+  it("previews a drop inside Chats when it is the only section", () => {
     const plain = sidebarItems(EMPTY_SIDEBAR_SECTIONS_STATE, "visible");
-    expect(
-      projectSectionedActiveArea({
-        items: plain,
-        activeKey: "t1",
-        overId: "t3",
-        targetSection: "active",
-        order: [],
-      }),
-    ).toBeNull();
+    const area = projectSectionedActiveArea({
+      items: plain,
+      activeKey: "t1",
+      overId: "t3",
+      targetSection: "active",
+      order: ["t2", "t3", "t1", "t4", "t5"],
+    });
+    expect(area && ids(area)).toEqual([CHATS, "t2", "t3", "t1", "t4", "t5"]);
   });
 
   it("keeps headers in place and previews the chat inside its target section", () => {

@@ -3572,7 +3572,9 @@ export default function Sidebar() {
       return [];
     }
     const items: SidebarListItem[] = [{ kind: "marker", marker: "pinned-header" }];
-    const pinnedRows = rowsOf(pinnedThreads, "pinned");
+    const pinnedRows = rowsOf(pinnedThreads, "pinned").filter(
+      (item) => item.kind === "thread" && sectionsController.showsPinnedRow(item.key, mode),
+    );
     items.push(...pinnedRows);
     items.push({ kind: "marker", marker: "pinned-divider" });
     items.push({ kind: "marker", marker: "active-placeholder" });
@@ -4975,11 +4977,16 @@ export default function Sidebar() {
                         switch (item.marker) {
                           case "pinned-header":
                             items.push(
+                              sectionsController.renderPinnedHeader(
+                                pinnedThreads.length,
+                                from !== null,
+                                dragTargetSection === "pinned",
+                              ),
                               <SidebarDragBoundary
                                 key="pinned-header"
                                 marker="pinned-header"
                                 label="Pinned"
-                                visible={from !== null}
+                                visible={from !== null && pinnedThreads.length === 0}
                                 isDropTarget={dragTargetSection === "pinned"}
                               />,
                             );

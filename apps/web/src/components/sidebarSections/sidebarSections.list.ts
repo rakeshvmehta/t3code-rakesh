@@ -39,8 +39,7 @@ export function buildActiveSectionItems(
   mode: "visible" | "full",
 ): SidebarListItem[] {
   const row = (key: string): SidebarListItem => ({ kind: "thread", key, section: "active" });
-  // Only Chats: no headers at all, so the list matches upstream exactly.
-  if (groups.length <= 1) return groups.flatMap((group) => group.threadKeys.map(row));
+  // Chats always has its header, so it can collapse even with no custom sections.
   const items: SidebarListItem[] = [];
   for (const group of groups) {
     items.push({
