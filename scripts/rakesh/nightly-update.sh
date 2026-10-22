@@ -130,7 +130,10 @@ install_staged() {
 publish() {
   [[ "$MODE" == maintain && "$BRANCH" == rakesh/main ]] || return 0
   git -C "$REPO" remote get-url origin >/dev/null 2>&1 || return 0
-  if git -C "$REPO" push --quiet origin "$BRANCH"; then
+  # build.sh versions the app from the latest stable tag, so followers need it.
+  local base_tag
+  base_tag="$(git -C "$REPO" describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' "$BRANCH")"
+  if git -C "$REPO" push --quiet origin "$BRANCH" "refs/tags/$base_tag"; then
     log "pushed $BRANCH to origin"
   else
     log "push of $BRANCH to origin failed"
@@ -158,7 +161,7 @@ if [[ "${RAKESH_NIGHTLY_FORCE:-0}" != 1 && "$(cat "$STATE_DIR/last-run" 2>/dev/n
   exit 0
 fi
 if [[ "$MODE" == follow ]]; then
-  git -C "$REPO" fetch --quiet origin "$BRANCH"
+  git -C "$REPO" fetch --quiet --tags origin "$BRANCH"
   echo "$TODAY" >"$STATE_DIR/last-run"
   old_head="$(git -C "$REPO" rev-parse "$BRANCH")"
   new_head="$(git -C "$REPO" rev-parse FETCH_HEAD)"
