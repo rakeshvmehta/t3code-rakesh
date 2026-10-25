@@ -115,8 +115,8 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
   );
 }
 
-function SidebarBrandMark(_props: { onBackdrop: boolean }) {
-  return <RakeshBrandMark />;
+function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
+  return <RakeshBrandMark onBackdrop={onBackdrop} />;
 }
 
 function SidebarUtilityItem({

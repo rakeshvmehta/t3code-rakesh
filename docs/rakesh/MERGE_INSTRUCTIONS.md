@@ -51,11 +51,12 @@ Our edits to upstream files are deliberately small:
   `T3CODE_DESKTOP_PRODUCT_NAME` override in `resolveDesktopProductName`.
 - `.gitignore`: `release-rakesh/`.
 - `apps/web/src/components/sidebar/SidebarChrome.tsx`: `SidebarBrandMark` just
-  returns `<RakeshBrandMark />`. On conflict keep that
+  returns `<RakeshBrandMark onBackdrop={onBackdrop} />`. On conflict keep that
   body and take upstream's changes elsewhere in the file.
-- `apps/web/public/apple-touch-icon.png`, `favicon.ico`, `favicon-16x16.png`,
-  `favicon-32x32.png`: the T3-R icon (the splash screen shows
-  apple-touch-icon). On conflict keep ours.
+- `assets/prod/t3-black-web-apple-touch-180.png`, `t3-black-web-favicon.ico`,
+  `t3-black-web-favicon-16x16.png`, `t3-black-web-favicon-32x32.png`: the T3-R
+  icon. The desktop build copies these over the web icons, and the splash
+  screen shows the apple-touch one. On conflict keep ours.
 
 ## The contract (must still hold after the merge)
 
