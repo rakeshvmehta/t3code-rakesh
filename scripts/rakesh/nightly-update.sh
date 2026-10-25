@@ -33,6 +33,10 @@ else
   MODE="${RAKESH_NIGHTLY_MODE:-follow}"
 fi
 
+# A stalled fetch once hung a run for five hours; give up after two minutes
+# under 1 KB/s and let the next scheduled run retry.
+export GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=120
+
 mkdir -p "$RAKESH_LOG_DIR" "$STATE_DIR" "$(dirname "$WORKTREE")"
 LOG="$RAKESH_LOG_DIR/nightly-$TODAY.log"
 exec >>"$LOG" 2>&1
@@ -226,7 +230,7 @@ if ! git merge --no-ff --no-edit -m "rakesh: merge upstream $tag" "$tag"; then
     "Bash(git log:*)" "Bash(git show:*)" "Bash(git add:*)" "Bash(git checkout:*)" \
     "Bash(git ls-files:*)" "Bash(git rev-parse:*)" "Bash(cd:*)" "Bash(ls:*)" \
     "Bash(pnpm install --frozen-lockfile)" "Bash(pnpm exec vp test run:*)" \
-    "Bash(pnpm run typecheck)" \
+    "Bash(pnpm exec vp run typecheck)" \
     --disallowedTools "Bash(git push:*)" "Bash(git commit:*)" "Bash(git merge:*)" \
     "Bash(git reset:*)" "Bash(git rebase:*)" "Bash(pnpm exec git:*)" "Bash(pnpm dlx:*)" \
     <"$prompt_file" &

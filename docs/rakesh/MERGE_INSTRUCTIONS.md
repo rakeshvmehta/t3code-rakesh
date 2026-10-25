@@ -40,6 +40,9 @@ Our edits to upstream files are deliberately small:
 - `apps/web/src/components/Sidebar.drag.ts`: the sorting strategy uses
   `projectSectionedActiveArea` for the active area; collision detection prefers
   a section header under the pointer at its drawn position.
+- `apps/web/src/components/sidebar/SidebarListMarkers.tsx`:
+  `SortableSidebarMarker` is exported (upstream keeps it file-private) so
+  `Sidebar.tsx` can wrap our section headers in it.
 - `apps/web/src/components/sidebar/SidebarThreadHeader.tsx`: optional
   `onNewSection` prop rendering `NewSectionButton` between the project filter
   and the Add project button.
@@ -93,7 +96,7 @@ Our edits to upstream files are deliberately small:
      apps/web/src/components/Sidebar.drag.test.ts
    (cd apps/web && pnpm exec vp test run --project browser src/components/Sidebar)
    (cd scripts && pnpm exec vp test run --config ../vite.config.ts --dir . rakesh/identity.test.ts)
-   (cd apps/web && pnpm run typecheck)
+   (cd apps/web && pnpm exec vp run typecheck)
    ```
 
    If upstream changed an API a test of ours relies on, update our test or
