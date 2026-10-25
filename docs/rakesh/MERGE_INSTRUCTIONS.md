@@ -16,6 +16,7 @@ Read those commits (`git show <sha>`) before touching a conflict. Our code
 lives mostly in new files, and those almost never conflict:
 
 - `apps/web/src/components/sidebarSections/**` (the feature)
+- `apps/web/src/components/rakesh/**` (the "T3-R" sidebar brand mark)
 - `scripts/rakesh/**`, `docs/rakesh/**` (build, install, nightly, this file)
 
 Our edits to upstream files are deliberately small:
@@ -49,6 +50,12 @@ Our edits to upstream files are deliberately small:
 - `scripts/build-desktop-artifact.ts`: `resolveDesktopAppId()` and the
   `T3CODE_DESKTOP_PRODUCT_NAME` override in `resolveDesktopProductName`.
 - `.gitignore`: `release-rakesh/`.
+- `apps/web/src/components/sidebar/SidebarChrome.tsx`: `SidebarBrandMark` just
+  returns `<RakeshBrandMark />`. On conflict keep that
+  body and take upstream's changes elsewhere in the file.
+- `apps/web/public/apple-touch-icon.png`, `favicon.ico`, `favicon-16x16.png`,
+  `favicon-32x32.png`: the T3-R icon (the splash screen shows
+  apple-touch-icon). On conflict keep ours.
 
 ## The contract (must still hold after the merge)
 
