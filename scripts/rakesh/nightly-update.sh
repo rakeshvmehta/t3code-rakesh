@@ -164,6 +164,13 @@ if [[ "${RAKESH_NIGHTLY_FORCE:-0}" != 1 && "$(cat "$STATE_DIR/last-run" 2>/dev/n
   trap - ERR
   exit 0
 fi
+# A run missed while the Mac slept fires right on wake, often before Wi-Fi
+# is back; give the network five minutes before fetching.
+for _ in {1..30}; do
+  curl -fs -o /dev/null --max-time 10 https://github.com && break
+  sleep 10
+done
+
 if [[ "$MODE" == follow ]]; then
   git -C "$REPO" fetch --quiet --tags origin "$BRANCH"
   echo "$TODAY" >"$STATE_DIR/last-run"
