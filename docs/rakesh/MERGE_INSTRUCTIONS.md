@@ -16,7 +16,7 @@ Read those commits (`git show <sha>`) before touching a conflict. Our code
 lives mostly in new files, and those almost never conflict:
 
 - `apps/web/src/components/sidebarSections/**` (the feature)
-- `apps/web/src/components/rakesh/**` (the "T3-R" sidebar brand mark)
+- `apps/web/src/components/rakesh/**` (the "T3-R" sidebar brand mark, thread notes)
 - `scripts/rakesh/**`, `docs/rakesh/**` (build, install, nightly, this file)
 
 Our edits to upstream files are deliberately small:
@@ -36,6 +36,18 @@ Our edits to upstream files are deliberately small:
   `sectionsController.showsPinnedRow(key, mode)` in `buildSidebarListItems`;
   the `pinned-header` case pushes `sectionsController.renderPinnedHeader(...)`
   before the `SidebarDragBoundary`, whose label shows only when nothing is pinned.
+- `apps/web/src/components/Sidebar.tsx`, thread notes:
+  `const threadNotes = useThreadNotesController()` after the sections
+  controller; the single-thread menu calls
+  `threadNotes.showMenu(api.contextMenu, threadKey, buildThreadActionMenuItems(...), position)`
+  instead of `api.contextMenu.show(...)`; right after the
+  `clicked.value === null` return, `isThreadNoteMenuId(clicked.value)` hands
+  the click to `threadNotes.handleMenu` and returns; both delete paths call
+  `threadNotes.forget(...)` (bulk: `deletedThreadKeys`; single: after a
+  successful delete); `{threadNotes.dialog}` after `<SidebarChromeFooter />`.
+- `apps/web/src/components/sidebar/SidebarThreadRow.tsx`:
+  `<ThreadNoteHoverLine threadKey=... />` is the first child of
+  `ThreadHoverCard` in `SidebarThreadTooltip`.
 - `apps/web/src/components/Sidebar.logic.ts`: two extra `SidebarListMarker`
   members, `` `custom-section:${string}` `` and `"chats-header"`.
 - `apps/web/src/components/Sidebar.drag.ts`: the sorting strategy uses
@@ -79,6 +91,10 @@ Our edits to upstream files are deliberately small:
 - "Chats" always shows its collapsible header, even with no custom sections.
 - Pinned shows a collapsible "Pinned" header (count when collapsed) whenever
   there are pinned chats; collapsed, only the open chat stays visible.
+- A single thread's right-click menu has "Add note…" (or "Edit note…" and
+  "Clear note") right after "Rename thread". The note shows at the top of the
+  thread's hover card; nothing else about the row changes. Notes live in
+  localStorage (`t3code:rakesh:thread-notes:v1`).
 - Everything else (badges, project chips, pin, snooze, settle, archive,
   search, keyboard navigation) behaves exactly as upstream.
 - The app builds as "T3 Code (Rakesh)" / `com.rakesh.t3code` with no update
@@ -89,8 +105,8 @@ Our edits to upstream files are deliberately small:
 1. Upstream wins on everything that is not ours. When upstream rewrote code we
    hook into, take upstream's version and re-apply our small hook to the new
    code. Never revert, drop or "simplify" upstream changes.
-2. Keep our hooks minimal. Put any new logic in `sidebarSections/`, not in
-   `Sidebar.tsx`.
+2. Keep our hooks minimal. Put any new logic in `sidebarSections/` or
+   `rakesh/`, not in `Sidebar.tsx`.
 3. Never edit `apps/server`, `packages/contracts`, persistence or migrations.
 4. Resolve every conflicted file, remove all conflict markers, and `git add`
    them. Do not commit, do not push, do not abort the merge yourself; the
@@ -100,6 +116,7 @@ Our edits to upstream files are deliberately small:
    ```sh
    pnpm install --frozen-lockfile
    pnpm exec vp test run apps/web/src/components/sidebarSections/ \
+     apps/web/src/components/rakesh/ \
      apps/web/src/components/Sidebar.logic.test.ts \
      apps/web/src/components/Sidebar.drag.test.ts
    (cd apps/web && pnpm exec vp test run --project browser src/components/Sidebar)

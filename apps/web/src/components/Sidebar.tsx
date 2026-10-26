@@ -200,6 +200,8 @@ import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
 import { useSidebarSectionsController } from "./sidebarSections/useSidebarSectionsController";
+import { useThreadNotesController } from "./rakesh/ThreadNotes";
+import { isThreadNoteMenuId } from "./rakesh/threadNotes.logic";
 import { TooltipProvider } from "./ui/tooltip";
 import { composerDraftHasUserContent, DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
@@ -1070,6 +1072,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     activeKeys,
     routeThreadKey: routeRowThreadKey,
   });
+  const threadNotes = useThreadNotesController();
   const orderedThreadKeys = sectionsController.orderThreadKeys(upstreamOrderedThreadKeys);
 
   const isSearchingThreads = threadSearchQuery.trim().length > 0;
@@ -2239,6 +2242,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           });
         },
       });
+      threadNotes.forget(deletedThreadKeys);
       if (firstFailure !== null) {
         const firstError = squashAtomCommandFailure(firstFailure);
         toastManager.add(
@@ -2354,7 +2358,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             ),
           ) ?? null;
         const clicked = await settlePromise(() =>
-          api.contextMenu.show(
+          threadNotes.showMenu(
+            api.contextMenu,
+            threadKey,
             buildThreadActionMenuItems({
               canOperate: readEnvironmentScope(
                 threadRef.environmentId,
@@ -2387,6 +2393,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ),
         );
         if (clicked._tag === "Failure" || clicked.value === null) return;
+        if (isThreadNoteMenuId(clicked.value)) {
+          threadNotes.handleMenu(clicked.value, threadKey, thread.title);
+          return;
+        }
         if (threadActionRequiresOperate(clicked.value) && !checkThreadOperations([thread])) return;
         if (clicked.value?.startsWith("snooze:")) {
           const preset =
@@ -2565,6 +2575,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               );
               return;
             }
+            threadNotes.forget([threadKey]);
             return;
           }
           default:
@@ -3243,6 +3254,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         </SidebarGroup>
       </SidebarContent>
       <SidebarChromeFooter />
+      {threadNotes.dialog}
     </>
   );
 }

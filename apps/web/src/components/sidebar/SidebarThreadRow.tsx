@@ -1,4 +1,5 @@
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
+import { ThreadNoteHoverLine } from "../rakesh/ThreadNotes";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { requestCustomSnooze } from "../CustomSnoozeDialog";
@@ -272,6 +273,9 @@ function SidebarThreadTooltip({
           ) : null
         }
       >
+        <ThreadNoteHoverLine
+          threadKey={scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))}
+        />
         {projectDisplayName ? (
           <div className="flex min-w-0 items-center gap-2">
             {project ? <ProjectFavicon project={project} className="size-3 shrink-0" /> : null}
