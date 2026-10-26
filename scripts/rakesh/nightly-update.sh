@@ -165,10 +165,10 @@ if [[ "${RAKESH_NIGHTLY_FORCE:-0}" != 1 && "$(cat "$STATE_DIR/last-run" 2>/dev/n
   exit 0
 fi
 # A run missed while the Mac slept fires right on wake, often before Wi-Fi
-# is back; give the network five minutes before fetching.
-for _ in {1..30}; do
+# is back; give the network ten minutes before fetching.
+for _ in {1..20}; do
   curl -fs -o /dev/null --max-time 10 https://github.com && break
-  sleep 10
+  sleep 30
 done
 
 if [[ "$MODE" == follow ]]; then
