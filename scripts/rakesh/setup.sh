@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One command to go from a fresh clone to an installed "T3 Code (Rakesh)" with
-# nightly updates. Installs Node 24 (Homebrew) and an isolated Rust toolchain
+# scheduled stable-release updates. Installs Node 24 (Homebrew) and an isolated Rust toolchain
 # if missing, creates the signing identity, builds, installs and loads the
-# nightly LaunchAgent. Needs: Apple Silicon Mac, Xcode Command Line Tools,
+# stable-release updater LaunchAgent. Needs: Apple Silicon Mac, Xcode Command Line Tools,
 # Homebrew. Re-running is safe.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"

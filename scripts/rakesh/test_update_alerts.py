@@ -188,8 +188,8 @@ class UpdaterIntegrationTest(unittest.TestCase):
         self.state = self.root / 'state'
         self.state.mkdir()
         self.events = self.root / 'events'
-        (self.scripts / 'nightly-update.sh').write_text(
-            Path(__file__).with_name('nightly-update.sh').read_text())
+        (self.scripts / 'stable-update.sh').write_text(
+            Path(__file__).with_name('stable-update.sh').read_text())
         (self.scripts / 'env.sh').write_text(f'''
 RAKESH_REPO_ROOT='{self.root}'
 RAKESH_LOG_DIR='{self.root / 'logs'}'
@@ -210,10 +210,11 @@ ditto() {{ cp -R "$1" "$2"; }}
 
     def run_updater(self):
         import os
-        env = dict(os.environ, RAKESH_NIGHTLY_STATE_DIR=str(self.state),
-                   RAKESH_NIGHTLY_INSTALL_TARGET=str(self.root / 'app'),
-                   RAKESH_NIGHTLY_TAG='invalid-tag')
-        return subprocess.run(['bash', str(self.scripts / 'nightly-update.sh')],
+        env = dict(os.environ, RAKESH_UPDATE_STATE_DIR=str(self.state),
+                   RAKESH_UPDATE_INSTALL_TARGET=str(self.root / 'app'),
+                   RAKESH_UPDATE_TAG='invalid-tag',
+                   RAKESH_UPDATE_WORKTREE=str(self.root / 'update-worktree'))
+        return subprocess.run(['bash', str(self.scripts / 'stable-update.sh')],
                               env=env, capture_output=True, text=True, timeout=10)
 
     def test_update_failure_alert_does_not_replace_the_failure_exit(self):

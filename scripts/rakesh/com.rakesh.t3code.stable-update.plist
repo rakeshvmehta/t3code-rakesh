@@ -4,11 +4,11 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.rakesh.t3code.nightly</string>
+  <string>com.rakesh.t3code.stable-update</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>__REPO__/scripts/rakesh/nightly-update.sh</string>
+    <string>__REPO__/scripts/rakesh/stable-update.sh</string>
   </array>
   <key>StartCalendarInterval</key>
   <array>

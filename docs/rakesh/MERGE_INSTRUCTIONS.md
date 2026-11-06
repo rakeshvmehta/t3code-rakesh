@@ -17,7 +17,7 @@ lives mostly in new files, and those almost never conflict:
 
 - `apps/web/src/components/sidebarSections/**` (the feature)
 - `apps/web/src/components/rakesh/**` (the "T3-R" sidebar brand mark, thread notes)
-- `scripts/rakesh/**`, `docs/rakesh/**` (build, install, nightly, this file)
+- `scripts/rakesh/**`, `docs/rakesh/**` (build, install, stable-release updater, this file)
 
 Our edits to upstream files are deliberately small:
 
@@ -110,7 +110,7 @@ Our edits to upstream files are deliberately small:
 3. Never edit `apps/server`, `packages/contracts`, persistence or migrations.
 4. Resolve every conflicted file, remove all conflict markers, and `git add`
    them. Do not commit, do not push, do not abort the merge yourself; the
-   nightly script does that from your result.
+   stable-release updater does that from your result.
 5. Run our tests and make them pass:
 
    ```sh

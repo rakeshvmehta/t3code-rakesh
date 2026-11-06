@@ -4,7 +4,7 @@ An unofficial personal fork of [T3 Code](https://github.com/pingdotgg/t3code)
 that adds **custom sidebar sections**: create sections from the sidebar header,
 drag chats into them (a chat keeps its project), collapse them, rename,
 reorder or delete them. Everything else is upstream T3 Code, merged from each
-stable release every night. Not affiliated with T3 Tools.
+stable release on a daily schedule. Not affiliated with T3 Tools.
 
 The branch is `rakesh/main`; our changes are the `rakesh:` commits. The app
 installs as **T3 Code (Rakesh)** (`com.rakesh.t3code`) next to the official
@@ -24,12 +24,16 @@ The first build takes about 10 minutes. Then open **T3 Code (Rakesh)** from
 Applications. On first launch macOS asks for your password to let it use the
 "t3code Safe Storage" keychain item; choose **Always Allow**. That happens once.
 
-## Updates
+## Stable-release updater
 
 A LaunchAgent pulls this repo at 05:00 and, if there is anything new, builds
 and installs it (retrying every 30 minutes until 06:30 while a chat is still
 working). The maintainer's Mac merges upstream at 04:00 and pushes here only
-after the build and tests pass. Logs: `~/Library/Logs/t3code-rakesh/`.
+after the build and tests pass. Logs: `~/Library/Logs/t3code-rakesh/stable-update-YYYY-MM-DD.log`.
+The updater runs `scripts/rakesh/stable-update.sh`; it follows stable releases,
+not the upstream nightly build channel. Existing installs can run
+`scripts/rakesh/install-launch-agent.sh` once to migrate the scheduled job name.
+The old `nightly-update.sh` entrypoint remains compatible until then.
 
 Optional Slack DMs use the signed-in Composio CLI. Local configuration lives in
 `~/Library/Application Support/t3code-rakesh/slack-alerts.json` with
@@ -47,5 +51,5 @@ checked against DM history before any resend. Mac notifications remain enabled.
 - Sidebar sections are stored on your Mac only.
 - To roll back: quit the app, then replace `/Applications/T3 Code (Rakesh).app`
   with `/Applications/T3 Code (Rakesh).app.prev`.
-- Uninstall: `launchctl bootout gui/$(id -u)/com.rakesh.t3code.nightly`,
-  delete `~/Library/LaunchAgents/com.rakesh.t3code.nightly.plist` and the app.
+- Uninstall: `launchctl bootout gui/$(id -u)/com.rakesh.t3code.stable-update`,
+  delete `~/Library/LaunchAgents/com.rakesh.t3code.stable-update.plist` and the app.

@@ -4,7 +4,7 @@
 
 **Goal:** Ship a personal T3 Code desktop build, "T3 Code (Rakesh)", that adds Codex-style custom sidebar sections, installs next to the official app, and rebuilds itself every night from the latest upstream stable release.
 
-**Architecture:** This is a frontend-only feature in `apps/web`, with no server, contract or database changes. Section definitions, which chat belongs to which section, and collapse state are stored in browser `localStorage` through the existing `useLocalStorage` hook. Custom sections render as new marker rows inside the existing "active" shelf of the flat sidebar list. Drag and drop keeps using the existing dnd-kit pipeline, and the section a chat is dropped into is decided by the nearest custom-section marker above the drop slot. Packaging changes only the app identity (name and bundle id) and turns off the auto-updater. A launchd job runs `scripts/rakesh/nightly-update.sh` at 04:00.
+**Architecture:** This is a frontend-only feature in `apps/web`, with no server, contract or database changes. Section definitions, which chat belongs to which section, and collapse state are stored in browser `localStorage` through the existing `useLocalStorage` hook. Custom sections render as new marker rows inside the existing "active" shelf of the flat sidebar list. Drag and drop keeps using the existing dnd-kit pipeline, and the section a chat is dropped into is decided by the nearest custom-section marker above the drop slot. Packaging changes only the app identity (name and bundle id) and turns off the auto-updater. A launchd job runs `scripts/rakesh/stable-update.sh` at 04:00.
 
 **Tech Stack:** TypeScript, React 19, @dnd-kit, Effect Schema, vite-plus (`vp test`), Electron, pnpm 11, Node 24, launchd.
 
@@ -33,7 +33,7 @@
 - Keep edits to `apps/web/src/components/Sidebar.tsx` small, and put logic in new files under `apps/web/src/components/sidebarSections/`. Upstream changes that file roughly every day.
 - localStorage key: `t3code:rakesh:sidebar-sections:v1`. Section ids are `crypto.randomUUID()`.
 - App identity: productName `T3 Code (Rakesh)`, bundle id `com.rakesh.t3code`. The installed path is `/Applications/T3 Code (Rakesh).app`. Auto-update must be fully disabled in this build.
-- Every commit that is ours is prefixed `rakesh:` so the nightly merge can identify our patch set.
+- Every commit that is ours is prefixed `rakesh:` so the scheduled stable-release merge can identify our patch set.
 
 ## Review Focus
 
@@ -171,12 +171,12 @@ Steps:
   - Settings → About shows the expected version
 - [ ] Commit `rakesh: app identity, updater disabled, build/install scripts`.
 
-### Task 6: Nightly upstream update (04:00)
+### Task 6: Scheduled stable-release update (04:00)
 
 **Files:**
-- Create: `scripts/rakesh/nightly-update.sh`
+- Create: `scripts/rakesh/stable-update.sh`
 - Create: `docs/rakesh/MERGE_INSTRUCTIONS.md` (the conflict-resolution brief)
-- Create: `scripts/rakesh/com.rakesh.t3code.nightly.plist`, installed to `~/Library/LaunchAgents/` and loaded with `launchctl bootstrap gui/$UID`
+- Create: `scripts/rakesh/com.rakesh.t3code.stable-update.plist`, installed to `~/Library/LaunchAgents/` and loaded with `launchctl bootstrap gui/$UID`
 
 Flow:
 1. Take a lock.
@@ -188,7 +188,7 @@ Flow:
 7. Run `scripts/rakesh/build.sh`.
 8. On success, fast-forward `rakesh/main`.
 9. If the app is not running, install now. If it is running and no thread is working (check how the backend exposes run status, for example the `t3` CLI or a read-only query of the state DB), quit it gracefully, install, and relaunch. Otherwise stage the build and retry the install at 04:30, 05:00 and 05:30.
-10. On any failure, leave `/Applications` untouched, write the log to `~/Library/Logs/t3code-rakesh/nightly-YYYY-MM-DD.log`, and post a macOS notification ("T3 Code (Rakesh) update failed — still on <version>") with `osascript`.
+10. On any failure, leave `/Applications` untouched, write the log to `~/Library/Logs/t3code-rakesh/stable-update-YYYY-MM-DD.log`, and post a macOS notification ("T3 Code (Rakesh) update failed — still on <version>") with `osascript`.
 11. On success, post a short notification ("Updated to <tag>").
 
 `MERGE_INSTRUCTIONS.md` must state:
@@ -200,5 +200,5 @@ Flow:
 
 - [ ] Dry-run the script against the current tag and expect "up to date, nothing to do".
 - [ ] Simulate an update by resetting a scratch branch to the previous stable tag, merging forward, building, and installing to a temp path rather than `/Applications`. The pipeline must succeed end to end.
-- [ ] Load the LaunchAgent and confirm with `launchctl print gui/$UID/com.rakesh.t3code.nightly` that it is scheduled for 04:00.
-- [ ] Commit `rakesh: nightly upstream update`.
+- [ ] Load the LaunchAgent and confirm with `launchctl print gui/$UID/com.rakesh.t3code.stable-update` that it is scheduled for 04:00.
+- [ ] Commit `rakesh: scheduled stable-release update`.
