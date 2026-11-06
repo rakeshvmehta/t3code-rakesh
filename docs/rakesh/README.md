@@ -31,6 +31,15 @@ and installs it (retrying every 30 minutes until 06:30 while a chat is still
 working). The maintainer's Mac merges upstream at 04:00 and pushes here only
 after the build and tests pass. Logs: `~/Library/Logs/t3code-rakesh/`.
 
+Optional Slack DMs use the signed-in Composio CLI. Local configuration lives in
+`~/Library/Application Support/t3code-rakesh/slack-alerts.json` with
+`account_id`, `team_id`, `user_id`, `channel_id` (your self-DM), and the absolute
+`composio_bin` path. No credentials belong in that file or this repository.
+The updater checks the account and recipient before sending. It sends one
+failure notice per unresolved update incident and one recovery notice after
+installation. Pending alerts retry on scheduled runs; ambiguous sends are
+checked against DM history before any resend. Mac notifications remain enabled.
+
 ## Good to know
 
 - It shares chats, projects and settings with the official T3 Code app

@@ -27,6 +27,7 @@ WORKTREE="$HOME/Library/Caches/t3code-rakesh/nightly-worktree"
 TODAY="$(date +%F)"
 CLAUDE_BIN="${RAKESH_CLAUDE_BIN:-$HOME/.local/bin/claude}"
 STATE_DB="$HOME/.t3/userdata/statev2.sqlite"
+STAGE="startup"
 if git -C "$REPO" remote get-url upstream >/dev/null 2>&1; then
   MODE="${RAKESH_NIGHTLY_MODE:-maintain}"
 else
@@ -48,6 +49,12 @@ installed_version() {
     echo "unknown"
 }
 
+slack_alert() {
+  python3 "$REPO/scripts/rakesh/update-alerts.py" "$1" --state-dir "$STATE_DIR" \
+    --installed "$(installed_version)" --target "${tag:-unknown}" --stage "$STAGE" --log "$LOG" ||
+    log "Slack alert pending; local update status is unchanged"
+}
+
 cleanup_worktree() {
   if [[ -e "$WORKTREE" ]]; then
     git -C "$WORKTREE" merge --abort >/dev/null 2>&1 || true
@@ -59,9 +66,11 @@ cleanup_worktree() {
 release_lock() { rm -rf "$LOCK_DIR"; }
 
 fail() {
+  trap - ERR
   log "FAILED: $*"
   cleanup_worktree
   rakesh_notify "T3 Code (Rakesh) update failed — still on $(installed_version). Log: $LOG"
+  slack_alert failure
   release_lock
   exit 1
 }
@@ -96,6 +105,7 @@ chats_working() {
 
 # Installs the staged build. Returns 1 (keeping it staged) when chats are working.
 install_staged() {
+  STAGE="install"
   local tag
   tag="$(cat "$STAGED_TAG_FILE")"
   local relaunch=0
@@ -120,12 +130,14 @@ install_staged() {
   # Callers use `if`/`||`, which disables set -e here, so check explicitly.
   if ! RAKESH_SOURCE_APP="$STAGED_APP" "$REPO/scripts/rakesh/install.sh" "$TARGET"; then
     log "install of $tag failed; keeping it staged"
+    slack_alert failure
     return 1
   fi
   rm -rf "$STATE_DIR/staged"
   log "installed $tag at $TARGET"
   [[ "$relaunch" == 1 ]] && open "$TARGET"
   rakesh_notify "Updated to $tag"
+  slack_alert installed
   return 0
 }
 
@@ -146,6 +158,7 @@ publish() {
 }
 
 log "nightly start ($MODE, branch $BRANCH, target $TARGET)"
+slack_alert flush
 
 if [[ -d "$STAGED_APP" ]]; then
   if install_staged; then
@@ -166,6 +179,7 @@ if [[ "${RAKESH_NIGHTLY_FORCE:-0}" != 1 && "$(cat "$STATE_DIR/last-run" 2>/dev/n
 fi
 # A run missed while the Mac slept fires right on wake, often before Wi-Fi
 # is back; give the network ten minutes before fetching.
+STAGE="fetch"
 for _ in {1..20}; do
   curl -fs -o /dev/null --max-time 10 https://github.com && break
   sleep 30
@@ -210,6 +224,7 @@ if git -C "$REPO" merge-base --is-ancestor "$tag" "$BRANCH"; then
   exit 0
 fi
 log "merging $tag into $BRANCH"
+STAGE="merge"
 
 old_head="$(git -C "$REPO" rev-parse "$BRANCH")"
 cleanup_worktree
@@ -254,12 +269,14 @@ if ! git merge --no-ff --no-edit -m "rakesh: merge upstream $tag" "$tag"; then
   if git grep -nE '^(<<<<<<<|>>>>>>>)( |$)' -- . >/dev/null; then
     fail "conflict markers remain"
   fi
+  STAGE="validation"
   git commit --no-edit
 fi
 fi
 new_head="$(git rev-parse HEAD)"
 
 log "building"
+STAGE="build"
 "$WORKTREE/scripts/rakesh/build.sh" || fail "build failed"
 
 mkdir -p "$STATE_DIR/staged"
