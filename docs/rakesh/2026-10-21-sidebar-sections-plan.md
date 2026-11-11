@@ -57,11 +57,13 @@
 ### Task 2: Section store (pure model + hook)
 
 **Files:**
+
 - Create: `apps/web/src/components/sidebarSections/sidebarSections.logic.ts`
 - Create: `apps/web/src/components/sidebarSections/useSidebarSections.ts`
 - Test: `apps/web/src/components/sidebarSections/sidebarSections.logic.test.ts`
 
 **Interfaces (produces):**
+
 ```ts
 export const SIDEBAR_SECTIONS_STORAGE_KEY = "t3code:rakesh:sidebar-sections:v1";
 export type SidebarCustomSection = { readonly id: string; readonly name: string; readonly collapsed: boolean };
@@ -98,19 +100,30 @@ export function useSidebarSections(): { state; add(name): string; rename; remove
 ### Task 3: List markers and drop resolution
 
 **Files:**
+
 - Modify: `apps/web/src/components/Sidebar.logic.ts`. The only change is to extend `SidebarListMarker` with `` `custom-section:${string}` `` and `"chats-header"`.
 - Create: `apps/web/src/components/sidebarSections/sidebarSections.list.ts`
 - Test: `apps/web/src/components/sidebarSections/sidebarSections.list.test.ts`
 
 **Interfaces (produces):**
+
 ```ts
 export function customSectionMarker(sectionId: string): SidebarListMarker; // `custom-section:${id}`
 export function parseCustomSectionMarker(marker: SidebarListMarker): string | null;
 // Builds the active-area rows: for each group, its header marker, then its rows (all rows if expanded, else only routeThreadKey's row).
-export function buildActiveSectionItems(groups: readonly ActiveSectionGroup[], routeThreadKey: string | null, mode: "visible" | "full"): SidebarListItem[];
+export function buildActiveSectionItems(
+  groups: readonly ActiveSectionGroup[],
+  routeThreadKey: string | null,
+  mode: "visible" | "full",
+): SidebarListItem[];
 // The section (id, or null = Chats) owning list slot `index` once `activeKey` is moved onto `overId`. Same arrayMove semantics as resolveSidebarDropTarget. A drop onto a custom-section/chats header joins THAT header's section.
-export function resolveDropSectionId(items: readonly SidebarListItem[], activeKey: string, overId: string): string | null | undefined; // undefined = not in active area
+export function resolveDropSectionId(
+  items: readonly SidebarListItem[],
+  activeKey: string,
+  overId: string,
+): string | null | undefined; // undefined = not in active area
 ```
+
 The new markers sit between `active-placeholder` and the working/snoozed/settled headers. Existing `sectionAtSidebarSlot` already treats unknown markers as staying in "active", which is what we want. Check that `Sidebar.drag.ts` (`isShelfHeader`, the sorting strategy) and `Sidebar.motion.ts` tolerate the new markers, and add them to any exhaustive switch.
 
 - [ ] Write tests for:
@@ -126,6 +139,7 @@ The new markers sit between `active-placeholder` and the working/snoozed/settled
 ### Task 4: Sidebar integration (UI)
 
 **Files:**
+
 - Create: `apps/web/src/components/sidebarSections/SidebarSectionHeader.tsx` (a collapsible header row that matches the Settled shelf header's look, with a count and a context menu: Rename / Move up / Move down / Delete, plus inline rename input)
 - Create: `apps/web/src/components/sidebarSections/NewSectionButton.tsx` (`SidebarHeaderIconButton` with `ListPlusIcon`, tooltip "New section")
 - Modify: `apps/web/src/components/sidebar/SidebarThreadHeader.tsx` (render `NewSectionButton` before the new-project button, behind an optional `onNewSection` prop)
@@ -151,6 +165,7 @@ The new markers sit between `active-placeholder` and the working/snoozed/settled
 ### Task 5: App identity, updater off, install
 
 **Files:**
+
 - Modify the minimal set of `apps/desktop/package.json` (`productName`), `scripts/build-desktop-artifact.ts` (`DESKTOP_APP_ID`, product-name resolution) and the desktop updater wiring, so that this build never checks for or applies updates. Prefer an env or flag the code already supports; otherwise make a one-line change at the updater's entry point.
 - Create: `scripts/rakesh/build.sh` (Node 24 PATH, `pnpm install --frozen-lockfile`, tests from Tasks 2–3, unsigned arm64 artifact into `release-rakesh/`)
 - Create: `scripts/rakesh/install.sh`:
@@ -160,6 +175,7 @@ The new markers sit between `active-placeholder` and the working/snoozed/settled
   4. Keep `.prev` for rollback.
 
 Steps:
+
 - [ ] Build and install.
 - [ ] Verify the packaged app's state dir is `~/.t3/userdata` (the same chats appear) and record which Electron `userData` dir it uses. If it differs from the official one, copy the official `Local Storage` dir into it once, before first launch, so client settings carry over.
 - [ ] **The official T3 Code app is running the user's live session during this build, so never quit it.** Do not point the Rakesh build at the real `~/.t3` while the official app runs. Verify against a snapshot: copy `~/.t3/userdata` (DB and state only, not worktrees) to a temp `T3CODE_HOME`, and use a separate Electron `userData` if the profile lock would collide. The user makes the real switch: quit the official app, then open `T3 Code (Rakesh)`.
@@ -174,11 +190,13 @@ Steps:
 ### Task 6: Scheduled stable-release update (04:00)
 
 **Files:**
+
 - Create: `scripts/rakesh/stable-update.sh`
 - Create: `docs/rakesh/MERGE_INSTRUCTIONS.md` (the conflict-resolution brief)
 - Create: `scripts/rakesh/com.rakesh.t3code.stable-update.plist`, installed to `~/Library/LaunchAgents/` and loaded with `launchctl bootstrap gui/$UID`
 
 Flow:
+
 1. Take a lock.
 2. Run `git fetch upstream --tags`.
 3. Find the latest **non-prerelease** release via `gh release list -R pingdotgg/t3code --exclude-pre-releases --limit 1`.
@@ -192,6 +210,7 @@ Flow:
 11. On success, post a short notification ("Updated to <tag>").
 
 `MERGE_INSTRUCTIONS.md` must state:
+
 - Our patch set is the `rakesh:`-prefixed commits.
 - The behavior spec above is the contract.
 - Upstream wins on everything else.
