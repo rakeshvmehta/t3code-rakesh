@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 
 export const SIDEBAR_SECTIONS_STORAGE_KEY = "t3code:rakesh:sidebar-sections:v1";
 
-export const CHATS_SECTION_NAME = "Chats";
+const CHATS_SECTION_NAME = "Chats";
 
 export type SidebarCustomSection = {
   readonly id: string;

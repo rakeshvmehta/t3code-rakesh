@@ -3,7 +3,11 @@ import { useState, type ReactNode } from "react";
 
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 
-import type { SidebarDropTarget, SidebarListItem, SidebarListMarker } from "../Sidebar.logic";
+import type {
+  resolveSidebarDropTarget,
+  SidebarListItem,
+  SidebarListMarker,
+} from "../Sidebar.logic";
 import { SidebarCustomSectionHeader } from "./SidebarSectionHeader";
 import {
   buildActiveSectionItems,
@@ -20,6 +24,7 @@ import { useSidebarSections } from "./useSidebarSections";
 
 const NEW_SECTION_NAME = "New section";
 const PINNED_COLLAPSED_STORAGE_KEY = "t3code:rakesh:sidebar-pinned-collapsed:v1";
+type SidebarDropTarget = NonNullable<ReturnType<typeof resolveSidebarDropTarget>>;
 
 // Everything Sidebar.tsx needs for custom sections, so its own edits stay a
 // handful of call sites. With no custom sections every output matches upstream.

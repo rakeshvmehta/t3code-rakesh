@@ -97,6 +97,9 @@ Our edits to upstream files are deliberately small:
   localStorage (`t3code:rakesh:thread-notes:v1`).
 - Everything else (badges, project chips, pin, snooze, settle, archive,
   search, keyboard navigation) behaves exactly as upstream.
+- Upstream's opt-in project-folder mode uses its own active rows and keyboard
+  order, without custom section headers or the New section button. Switching
+  modes preserves stored custom sections and assignments; notes work in both.
 - The app builds as "T3 Code (Rakesh)" / `com.rakesh.t3code` with no update
   feed.
 
@@ -133,9 +136,9 @@ Our edits to upstream files are deliberately small:
 Abort instead of guessing if any of these is true:
 
 - You cannot tell how to keep both upstream's change and our behavior.
-- Upstream now ships its own sidebar sections/folders/groups feature, or
-  removed or fundamentally replaced the flat sidebar list, drag and drop, or
-  the active shelf our feature hooks into.
+- Upstream removed or fundamentally replaced the standard flat sidebar list,
+  drag and drop, or the active shelf our feature hooks into. The existing
+  opt-in project-folder mode is supported separately as described above.
 - The tests above still fail after a reasonable fix.
 - Resolving would require touching server, contracts or persistence code.
 
