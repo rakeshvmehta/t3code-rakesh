@@ -5,9 +5,8 @@
 #     (only after a good build), install.
 #   follow (a plain clone of the fork): fast-forward to origin's rakesh/main,
 #     build, install. No merge, no agent.
-# launchd runs it four times, 30 minutes apart; only the first run of a day
-# builds, later runs retry installing a build that was staged because a chat
-# was still working.
+# launchd runs it four times, 30 minutes apart; failed checks/builds retry.
+# After a successful check, later runs only retry a staged installation.
 #
 # Overrides (for testing): RAKESH_UPDATE_BRANCH, RAKESH_UPDATE_TAG,
 # RAKESH_UPDATE_INSTALL_TARGET, RAKESH_UPDATE_STATE_DIR,
@@ -21,6 +20,7 @@ TARGET="${RAKESH_UPDATE_INSTALL_TARGET:-${RAKESH_NIGHTLY_INSTALL_TARGET:-$RAKESH
 STATE_DIR="${RAKESH_UPDATE_STATE_DIR:-${RAKESH_NIGHTLY_STATE_DIR:-$HOME/Library/Application Support/t3code-rakesh}}"
 STAGED_APP="$STATE_DIR/staged/$RAKESH_APP_NAME.app"
 STAGED_TAG_FILE="$STATE_DIR/staged/tag"
+SUCCESS_FILE="$STATE_DIR/last-success"
 LOCK_DIR="$STATE_DIR/nightly.lock" # Shared with older updater entrypoints.
 # Build tools dislike spaces in paths, so not under "Application Support".
 WORKTREE="${RAKESH_UPDATE_WORKTREE:-$HOME/Library/Caches/t3code-rakesh/stable-update-worktree}"
@@ -172,8 +172,8 @@ if [[ -d "$STAGED_APP" ]]; then
   exit 0
 fi
 
-if [[ "${RAKESH_UPDATE_FORCE:-${RAKESH_NIGHTLY_FORCE:-0}}" != 1 && "$(cat "$STATE_DIR/last-run" 2>/dev/null || true)" == "$TODAY" ]]; then
-  log "already ran today; nothing staged"
+if [[ "${RAKESH_UPDATE_FORCE:-${RAKESH_NIGHTLY_FORCE:-0}}" != 1 && "$(cat "$SUCCESS_FILE" 2>/dev/null || true)" == "$TODAY" ]]; then
+  log "already checked successfully today; nothing staged"
   trap - ERR
   exit 0
 fi
@@ -187,11 +187,11 @@ done
 
 if [[ "$MODE" == follow ]]; then
   git -C "$REPO" fetch --quiet --tags origin "$BRANCH"
-  echo "$TODAY" >"$STATE_DIR/last-run"
   old_head="$(git -C "$REPO" rev-parse "$BRANCH")"
   new_head="$(git -C "$REPO" rev-parse FETCH_HEAD)"
   if git -C "$REPO" merge-base --is-ancestor "$new_head" "$old_head"; then
     log "$BRANCH already at origin; up to date, nothing to do"
+    echo "$TODAY" >"$SUCCESS_FILE"
     trap - ERR
     exit 0
   fi
@@ -204,8 +204,6 @@ if [[ "$MODE" == follow ]]; then
   git -C "$REPO" worktree add --detach "$WORKTREE" "$new_head"
   cd "$WORKTREE"
 else
-git -C "$REPO" fetch upstream --tags --force --quiet
-
 tag="${RAKESH_UPDATE_TAG:-${RAKESH_NIGHTLY_TAG:-}}"
 if [[ -z "$tag" ]]; then
   # releases/latest is the newest non-draft, non-prerelease release.
@@ -214,12 +212,14 @@ if [[ -z "$tag" ]]; then
     /usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
 fi
 [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "unexpected release tag '$tag'"
+log "fetching stable release $tag"
+git -C "$REPO" fetch --quiet --no-tags upstream "refs/tags/$tag:refs/tags/$tag"
 git -C "$REPO" rev-parse --verify --quiet "refs/tags/$tag" >/dev/null || fail "tag $tag not fetched"
-echo "$TODAY" >"$STATE_DIR/last-run"
 
 if git -C "$REPO" merge-base --is-ancestor "$tag" "$BRANCH"; then
   log "$BRANCH already contains $tag; up to date, nothing to do"
   publish
+  echo "$TODAY" >"$SUCCESS_FILE"
   trap - ERR
   exit 0
 fi
@@ -294,6 +294,7 @@ log "$BRANCH now at $(git -C "$REPO" rev-parse --short "$BRANCH")"
 publish
 cd "$REPO"
 cleanup_worktree
+echo "$TODAY" >"$SUCCESS_FILE"
 
 install_staged || log "install deferred to the next scheduled run"
 trap - ERR

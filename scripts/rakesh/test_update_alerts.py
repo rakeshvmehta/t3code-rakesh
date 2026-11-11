@@ -235,7 +235,7 @@ ditto() {{ cp -R "$1" "$2"; }}
 
     def test_same_day_skip_flushes_alerts_without_installing(self):
         import datetime
-        (self.state / 'last-run').write_text(datetime.date.today().isoformat())
+        (self.state / 'last-success').write_text(datetime.date.today().isoformat())
         result = self.run_updater()
         self.assertEqual(result.returncode, 0)
         self.assertTrue(self.events.exists(), 'Missing pending-alert flush')
