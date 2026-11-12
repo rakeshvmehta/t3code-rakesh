@@ -1,5 +1,9 @@
 const NIGHTLY_SERVER_VERSION_PATTERN = /^[^-+]+-(?:nightly|preview)\.\d{8}\.\d+$/;
 
+export function resolveRakeshBrandName(version: string): "T3-R" | "T3-RN" {
+  return NIGHTLY_SERVER_VERSION_PATTERN.test(version) ? "T3-RN" : "T3-R";
+}
+
 export function formatAppDisplayName(input: {
   readonly baseName: string;
   readonly stageLabel: string;

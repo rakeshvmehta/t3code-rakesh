@@ -18,6 +18,7 @@ const WEB_ASSET_BRANDS = [
   "development",
   "nightly",
   "production",
+  "rakesh-nightly",
 ] as const satisfies ReadonlyArray<WebAssetBrand>;
 
 export const applyWebBrandAssets = Effect.fn("applyWebBrandAssets")(function* (
@@ -34,6 +35,17 @@ export const applyWebBrandAssets = Effect.fn("applyWebBrandAssets")(function* (
       fs.copyFile(path.join(repoRoot, override.sourceRelativePath), override.targetRelativePath),
     { concurrency: "unbounded" },
   );
+  const indexPath = path.resolve(repoRoot, targetDirectory, "index.html");
+  if (brand === "rakesh-nightly" && (yield* fs.exists(indexPath))) {
+    const html = yield* fs.readFileString(indexPath);
+    yield* fs.writeFileString(
+      indexPath,
+      html
+        .replace(/<title>[^<]*<\/title>/, "<title>T3-RN</title>")
+        .replace('aria-label="T3 Code splash screen"', 'aria-label="T3-RN splash screen"')
+        .replace('alt="T3 Code"', 'alt="T3-RN"'),
+    );
+  }
 });
 
 export const applyWebBrandAssetsCommand = Command.make(

@@ -37,7 +37,7 @@ export const BRAND_ASSET_PATHS = {
   developmentWebIcon512Png: "assets/dev/blueprint-web-icon-512x512.png",
 } as const;
 
-export type WebAssetBrand = "development" | "nightly" | "production";
+export type WebAssetBrand = "development" | "nightly" | "production" | "rakesh-nightly";
 
 export const WEB_ASSET_CHANNELS = ["latest", "nightly"] as const;
 
@@ -62,6 +62,14 @@ const WEB_ICON_TARGET_FILENAMES = {
 } as const;
 
 const WEB_ICON_SOURCE_PATHS_BY_BRAND = {
+  "rakesh-nightly": {
+    faviconIco: "assets/rakesh/nightly/favicon.ico",
+    favicon16Png: "assets/rakesh/nightly/favicon-16x16.png",
+    favicon32Png: "assets/rakesh/nightly/favicon-32x32.png",
+    appleTouchIconPng: "assets/rakesh/nightly/apple-touch-icon.png",
+    icon192Png: "assets/rakesh/nightly/icon-192x192.png",
+    icon512Png: "assets/rakesh/nightly/icon-512x512.png",
+  },
   development: {
     faviconIco: BRAND_ASSET_PATHS.developmentWebFaviconIco,
     favicon16Png: BRAND_ASSET_PATHS.developmentWebFavicon16Png,

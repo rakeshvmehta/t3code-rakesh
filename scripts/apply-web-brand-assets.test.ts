@@ -16,6 +16,29 @@ const WEB_ICON_FILENAMES = [
 ];
 
 it.layer(NodeServices.layer)("apply-web-brand-assets", (it) => {
+  it.effect("uses the personal nightly mark on the startup screen and web icons", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const target = yield* fs.makeTempDirectoryScoped({ prefix: "rakesh-nightly-brand-" });
+      const index = path.join(target, "index.html");
+      yield* fs.writeFileString(
+        index,
+        '<title>T3 Code (Beta)</title><div aria-label="T3 Code splash screen"><img alt="T3 Code" /></div>',
+      );
+      yield* applyWebBrandAssets("rakesh-nightly", target);
+      assert.equal(
+        yield* fs.readFileString(index),
+        '<title>T3-RN</title><div aria-label="T3-RN splash screen"><img alt="T3-RN" /></div>',
+      );
+      const repo = yield* path.fromFileUrl(new URL("..", import.meta.url));
+      assert.deepEqual(
+        yield* fs.readFile(path.join(target, "apple-touch-icon.png")),
+        yield* fs.readFile(path.join(repo, "assets/rakesh/nightly/apple-touch-icon.png")),
+      );
+    }),
+  );
+
   it.effect("copies the icons into an absolute target directory as given", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;

@@ -12,6 +12,12 @@ The output is `release-rakesh-nightly/T3 Code (Rakesh Nightly).app`, bundle ID
 merged into the checkout. The stable build keeps its existing identity and
 output directory.
 
+The nightly app displays **T3-RN** in its sidebar, window/app labels, and startup
+screen. Its Dock icon and web/startup icons come from the same mark under
+`assets/rakesh/nightly/` (`logo.svg` is the editable source). The existing app
+filename and bundle ID stay unchanged so installation, updates, and macOS
+permissions keep their existing identity. Stable keeps the T3-R mark.
+
 Install the nightly app while it is closed:
 
 ```sh
