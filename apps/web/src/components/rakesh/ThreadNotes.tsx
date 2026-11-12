@@ -21,12 +21,27 @@ import {
   ThreadNotesSchema,
   removeThreadNotes,
   setThreadNote,
+  threadNotePreview,
   withThreadNoteMenuItems,
   type ThreadNoteMenuId,
 } from "./threadNotes.logic";
 
 function useThreadNotes() {
   return useLocalStorage(THREAD_NOTES_STORAGE_KEY, EMPTY_THREAD_NOTES, ThreadNotesSchema);
+}
+
+export function useThreadNotePreview(threadKey: string) {
+  const [notes] = useThreadNotes();
+  return threadNotePreview(notes[threadKey]);
+}
+
+export function ThreadNotePreview({ preview }: { preview: string | null }) {
+  if (preview === null) return null;
+  return (
+    <div className="my-1.5 min-w-0 rounded-xs border-l-2 border-warning bg-warning/10 px-2 py-1.5 text-xs text-foreground select-text">
+      <div className="line-clamp-2 wrap-break-word">{preview}</div>
+    </div>
+  );
 }
 
 // The note line at the top of a thread's hover card; nothing when unset.

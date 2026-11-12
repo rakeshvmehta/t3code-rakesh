@@ -4,10 +4,24 @@ import {
   EMPTY_THREAD_NOTES,
   THREAD_NOTE_MAX_LENGTH,
   isThreadNoteMenuId,
+  threadNotePreview,
   removeThreadNotes,
   setThreadNote,
   withThreadNoteMenuItems,
 } from "./threadNotes.logic.ts";
+
+describe("threadNotePreview", () => {
+  it.each([
+    [undefined, null],
+    [" \n\t ", null],
+    ["  first line\n\tsecond line  ", "first line second line"],
+    ["a".repeat(100), "a".repeat(100)],
+    ["a".repeat(101), `${"a".repeat(100)}…`],
+    ["😀".repeat(101), `${"😀".repeat(100)}…`],
+  ])("normalizes and truncates %j", (note, expected) => {
+    expect(threadNotePreview(note)).toBe(expected);
+  });
+});
 
 describe("setThreadNote", () => {
   it("stores a trimmed note", () => {
