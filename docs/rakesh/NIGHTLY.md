@@ -14,7 +14,9 @@ output directory.
 
 The nightly app displays **T3-RN** in its sidebar, window/app labels, and startup
 screen. Its Dock icon and web/startup icons come from the same mark under
-`assets/rakesh/nightly/` (`logo.svg` is the editable source). The existing app
+`assets/rakesh/nightly/` (`app-icon.icon` is the editable Icon Composer source).
+The original nightly stars, clouds, and space background are preserved; only
+the lettering layer changes to T3-RN. The existing app
 filename and bundle ID stay unchanged so installation, updates, and macOS
 permissions keep their existing identity. Stable keeps the T3-R mark.
 
