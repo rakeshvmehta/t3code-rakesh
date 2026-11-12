@@ -54,26 +54,39 @@ def handle_event(path, slack, event, **details):
         if item['status'] in ('sent', 'superseded'):
             continue
         if item['status'] in ('sending', 'uncertain'):
-            receipt = slack.find(item['text'])
+            try:
+                receipt = slack.find(item['text'], item.get('receipt_id'))
+            except Exception as error:
+                item['last_error'] = safe_error(error)
+                save(path, state)
+                raise
             if receipt is None:
                 raise Uncertain('Prior send has no confirmed receipt; not sending again')
         else:
-            # Record the attempt before a provider call so a crash cannot replay it.
-            item['status'] = 'sending'
-            save(path, state)
+            def before_send():
+                item['status'] = 'sending'
+                save(path, state)
+
+            def accepted(receipt_id):
+                item['receipt_id'] = receipt_id
+                save(path, state)
+
             try:
-                receipt = slack.send(item['text'])
-            except Rejected:
-                item['status'] = 'pending'
+                receipt = slack.send(item['text'], before_send=before_send, accepted=accepted)
+            except Exception as error:
+                item['status'] = ('pending' if isinstance(error, Rejected)
+                                  or item['status'] != 'sending' else 'uncertain')
+                item['last_error'] = safe_error(error)
                 save(path, state)
                 raise
-            except Exception:
-                item['status'] = 'uncertain'
-                save(path, state)
-                raise
+        item.pop('last_error', None)
         item.update(status='sent', receipt_id=receipt['id'])
         save(path, state)
     return state
+
+
+def safe_error(error):
+    return str(error) if isinstance(error, (Rejected, Uncertain)) else type(error).__name__
 
 
 class ComposioSlack:
@@ -82,14 +95,17 @@ class ComposioSlack:
 
     def call(self, arguments, mutating=False):
         command = [self.config['composio_bin'], *arguments, '--account', self.config['account_id']]
+        operation = arguments[1].rsplit('/', 1)[-1]
         try:
             result = subprocess.run(command, stdin=subprocess.DEVNULL,
                                     capture_output=True, text=True, timeout=20)
             response = json.loads(result.stdout)
-        except (subprocess.TimeoutExpired, json.JSONDecodeError) as error:
-            raise Uncertain('Composio returned no conclusive result') from error
+        except subprocess.TimeoutExpired as error:
+            raise Uncertain(f'Composio {operation} timed out after 20 seconds') from error
+        except json.JSONDecodeError as error:
+            raise Uncertain(f'Composio {operation} returned invalid JSON') from error
         except OSError as error:
-            raise Rejected('Composio CLI could not start') from error
+            raise Rejected(f'Composio {operation} CLI could not start') from error
         data = response.get('data', response)
         if response.get('successful') is False or data.get('ok') is False:
             code = data.get('error', response.get('error', 'provider_rejected'))
@@ -97,9 +113,9 @@ class ComposioSlack:
                                          'account_inactive', 'token_revoked', 'ratelimited',
                                          'invalid_time', 'invalid_user', 'user_not_found'):
                 raise Uncertain('Slack delivery outcome needs reconciliation')
-            raise Rejected('Slack rejected the request')
+            raise Rejected(f'Slack rejected {operation}')
         if result.returncode != 0:
-            raise Uncertain('Composio exited without a successful result')
+            raise Uncertain(f'Composio {operation} exited without a successful result')
         return data
 
     def verify_identity(self):
@@ -118,16 +134,20 @@ class ComposioSlack:
     def execute(self, slug, payload, mutating=False):
         return self.call(['execute', slug, '-d', json.dumps(payload)], mutating=mutating)
 
-    def send(self, text):
+    def send(self, text, before_send=None, accepted=None):
         self.verify_identity()
         payload = {'channel': self.config['channel_id'], 'text': text,
                    'client_msg_id': str(uuid.uuid5(uuid.NAMESPACE_URL, text)),
                    'unfurl_links': False, 'unfurl_media': False}
+        if before_send:
+            before_send()
         data = self.call(['proxy', 'https://slack.com/api/chat.postMessage', '--toolkit',
                           'slack', '--method', 'POST', '--data', json.dumps(payload)],
                          mutating=True)
         if data.get('channel') != self.config['channel_id'] or not data.get('ts'):
             raise Uncertain('Slack returned an unexpected message receipt')
+        if accepted:
+            accepted(data['ts'])
         try:
             history = self.execute('SLACK_FETCH_CONVERSATION_HISTORY', {
                 'channel': self.config['channel_id'], 'oldest': data['ts'],
@@ -139,11 +159,13 @@ class ComposioSlack:
             raise Uncertain('Message accepted but readback failed') from error
         return {'id': data['ts'], 'text': text}
 
-    def find(self, text):
+    def find(self, text, receipt_id=None):
         self.verify_identity()
         cursor = None
         for _ in range(3):
             payload = {'channel': self.config['channel_id'], 'limit': 100}
+            if receipt_id:
+                payload.update(oldest=receipt_id, latest=receipt_id, inclusive=True)
             if cursor:
                 payload['cursor'] = cursor
             data = self.execute('SLACK_FETCH_CONVERSATION_HISTORY', payload)
@@ -183,7 +205,8 @@ def main():
                          stage=args.stage, log=args.log, product=args.product)
     except (Rejected, Uncertain, OSError, ValueError, KeyError) as error:
         # Provider output can contain credentials or raw logs; never echo it.
-        print(f'{args.product} Slack alert pending ({type(error).__name__}); see local alert state',
+        reason = safe_error(error)
+        print(f'{args.product} Slack alert pending ({type(error).__name__}: {reason}); see local alert state',
               file=sys.stderr)
         return 1
     return 0
