@@ -305,6 +305,51 @@ ditto() { mkdir -p "$2/Contents"; echo incomplete >"$2/Contents/partial"; return
         self.assertEqual(self.git('-C', str(other), 'rev-parse', 'HEAD'), before)
         self.assertFalse(self.builds.exists())
 
+    def test_worktree_attached_during_build_is_not_changed_at_publication(self):
+        self.successful_build()
+        other = self.root / 'user-worktree'
+        script = self.repo / 'scripts/rakesh/build.sh'
+        with script.open('a') as stream:
+            stream.write(f'\ngit -C "{self.repo}" worktree add -q "{other}" rakesh/nightly\n')
+        self.git('-C', str(self.repo), 'add', '.')
+        self.git('-C', str(self.repo), 'commit', '-qm', 'test branch attachment during build')
+        self.nightly()
+        before = self.git('-C', str(self.repo), 'rev-parse', 'HEAD')
+        self.git('-C', str(self.repo), 'switch', '-q', 'rakesh/main')
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 1, result.stderr + self.log())
+        self.assertEqual(self.git('-C', str(other), 'rev-parse', 'HEAD'), before)
+        self.assertFalse((self.state / 'staged').exists())
+
+    def test_publication_resumes_after_exit_immediately_after_branch_advancement(self):
+        self.successful_build()
+        self.nightly()
+        origin = self.root / 'origin'
+        self.git('init', '-q', '--bare', str(origin))
+        self.git('-C', str(self.repo), 'remote', 'add', 'origin', str(origin))
+        interrupted = self.root / 'interrupted'
+        hook = self.repo / '.git/hooks/post-merge'
+        hook.write_text(f'''#!/bin/bash
+if [[ "$PWD" -ef '{self.repo}' && ! -f '{interrupted}' ]]; then
+  touch '{interrupted}'
+  # This private fixture lock records the updater PID at startup.
+  job_pid="$(cat '{self.state / 'nightly.lock/pid'}')"
+  kill -KILL "$job_pid"
+fi
+''')
+        hook.chmod(0o755)
+        result = self.run_updater()
+        self.assertEqual(result.returncode, -9, result.stderr + self.log())
+        self.assertTrue((self.state / 'staged').exists())
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 0, result.stderr + self.log())
+        published = subprocess.run(['git', '-C', str(origin), 'rev-parse', 'rakesh/nightly'],
+                                   env=self.env, capture_output=True, text=True)
+        self.assertEqual(published.returncode, 0, published.stderr)
+        self.assertEqual(published.stdout.strip(), self.git('-C', str(self.repo), 'rev-parse', 'HEAD'))
+        self.assertTrue((self.root / 'app/Contents/Info.plist').exists())
+        self.assertFalse((self.state / 'publish-ready').exists())
+
 
 class ReleaseSelectionTest(unittest.TestCase):
     def test_selects_newest_published_nightly_and_excludes_stable_preview_and_draft(self):
