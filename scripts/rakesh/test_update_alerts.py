@@ -60,6 +60,35 @@ class UpdateAlertsTest(unittest.TestCase):
         self.assertEqual(len(self.slack.messages), 3)
         self.assertNotEqual(self.slack.messages[0]['text'], self.slack.messages[2]['text'])
 
+    def test_nightly_alerts_and_recovery_keep_the_stable_incident_open(self):
+        self.run_event('failure')
+        nightly_path = Path(self.temp.name) / 'nightly.json'
+        details = {'installed': '0.1.8-nightly.20261111.123',
+                   'target': 'v0.1.8-nightly.20261111.124', 'stage': 'build',
+                   'log': '/local/nightly.log', 'product': 'T3-RN'}
+        alerts.handle_event(nightly_path, self.slack, 'failure', **details)
+        alerts.handle_event(nightly_path, self.slack, 'installed', **details)
+        self.assertEqual(len(self.slack.messages), 3)
+        self.assertTrue(self.slack.messages[1]['text'].startswith('T3-RN update failed'))
+        self.assertTrue(self.slack.messages[2]['text'].startswith('T3-RN update recovered'))
+        self.assertIsNotNone(json.loads(self.path.read_text())['incident'])
+        self.assertIsNone(json.loads(nightly_path.read_text())['incident'])
+
+    def test_nightly_cli_shares_configuration_but_writes_only_its_own_state(self):
+        shared = Path(self.temp.name) / 'stable/slack-alerts.json'
+        shared.parent.mkdir()
+        config = {'account_id': 'TEST_ACCOUNT', 'team_id': 'TEST_TEAM',
+                  'user_id': 'TEST_USER', 'channel_id': 'TEST_DM', 'composio_bin': '/unused'}
+        shared.write_text(json.dumps(config))
+        nightly = Path(self.temp.name) / 'nightly'
+        result = subprocess.run(['python3', str(Path(__file__).with_name('update-alerts.py')),
+                                 'flush', '--state-dir', str(nightly), '--config', str(shared),
+                                 '--product', 'T3-RN'], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((nightly / 'slack-alert-state.json').exists())
+        self.assertFalse((shared.parent / 'slack-alert-state.json').exists())
+        self.assertEqual(json.loads(shared.read_text()), config)
+
     def test_definite_rejection_is_saved_and_retried(self):
         self.slack.error = alerts.Rejected('missing_scope')
         with self.assertRaises(alerts.Rejected):
@@ -190,6 +219,9 @@ class UpdaterIntegrationTest(unittest.TestCase):
         self.events = self.root / 'events'
         (self.scripts / 'stable-update.sh').write_text(
             Path(__file__).with_name('stable-update.sh').read_text())
+        release_update = Path(__file__).with_name('release-update.sh')
+        if release_update.exists():
+            (self.scripts / release_update.name).write_bytes(release_update.read_bytes())
         (self.scripts / 'env.sh').write_text(f'''
 RAKESH_REPO_ROOT='{self.root}'
 RAKESH_LOG_DIR='{self.root / 'logs'}'
@@ -198,7 +230,7 @@ RAKESH_INSTALL_PATH='{self.root / 'app'}'
 RAKESH_BUNDLE_ID='test.t3'
 rakesh_notify() {{ :; }}
 rakesh_app_running() {{ return 1; }}
-git() {{ case "$*" in *'rev-parse --verify'*) return 0;; *'remote get-url upstream'*) return 0;; *'fetch upstream'*) return 0;; *) return 1;; esac; }}
+git() {{ case "$*" in *'rev-parse --verify'*) return 0;; *'remote get-url upstream'*) return 0;; *'fetch upstream'*) return 0;; *'worktree list'*) return 0;; *) return 1;; esac; }}
 curl() {{ return 0; }}
 ditto() {{ cp -R "$1" "$2"; }}
 ''')

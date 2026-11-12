@@ -35,15 +35,16 @@ launchctl() {{
     [[ -f '{self.root / 'running'}' ]] && printf 'pid = 123\\n'
     return 0
   fi
-  if [[ "$1" == bootstrap && "$*" == *stable-update.plist && -f '{self.root / 'fail'}' ]]; then
+  if [[ "$1" == bootstrap && -f '{self.root / 'fail'}' ]]; then
+    rm '{self.root / 'fail'}'
     return 1
   fi
   return 0
 }}
 ''')
 
-    def install(self):
-        return subprocess.run(['bash', str(self.scripts / 'install-launch-agent.sh')],
+    def install(self, *arguments):
+        return subprocess.run(['bash', str(self.scripts / 'install-launch-agent.sh'), *arguments],
                               capture_output=True, text=True, timeout=10)
 
     def test_legacy_job_migrates_to_stable_name_and_keeps_schedule(self):
@@ -73,6 +74,50 @@ launchctl() {{
         self.assertTrue(self.legacy.exists())
         self.assertFalse(any(x.startswith(('bootout', 'bootstrap'))
                              for x in self.calls.read_text().splitlines()))
+
+    def test_nightly_job_coexists_with_stable_and_does_not_remove_legacy_stable_job(self):
+        stable = self.agents / 'com.rakesh.t3code.stable-update.plist'
+        original = plistlib.dumps({'Label': 'com.rakesh.t3code.stable-update', 'existing': True})
+        stable.write_bytes(original)
+        result = self.install('nightly')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        nightly = self.agents / 'com.rakesh.t3code.t3rn-update.plist'
+        self.assertTrue(nightly.exists(), 'Nightly job was not configured')
+        data = plistlib.loads(nightly.read_bytes())
+        self.assertEqual(data['Label'], 'com.rakesh.t3code.t3rn-update')
+        self.assertTrue(data['ProgramArguments'][-1].endswith('/t3rn-update.sh'))
+        self.assertEqual(data['StartCalendarInterval'], [
+            {'Hour': 2, 'Minute': 0}, {'Hour': 2, 'Minute': 30},
+            {'Hour': 3, 'Minute': 0}, {'Hour': 3, 'Minute': 30}])
+        self.assertEqual(stable.read_bytes(), original)
+        self.assertTrue(self.legacy.exists())
+
+    def test_explicit_follower_mode_overrides_an_upstream_remote_for_vm_handoff(self):
+        result = self.install('nightly', 'follow')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        nightly = self.agents / 'com.rakesh.t3code.t3rn-update.plist'
+        self.assertTrue(nightly.exists(), 'Nightly follower job was not configured')
+        data = plistlib.loads(nightly.read_bytes())
+        self.assertEqual(data['EnvironmentVariables']['RAKESH_UPDATE_MODE'], 'follow')
+        self.assertEqual(data['StartCalendarInterval'][0], {'Hour': 3, 'Minute': 0})
+        self.assertTrue(self.legacy.exists())
+
+    def test_failed_nightly_registration_restores_its_previous_job(self):
+        nightly = self.agents / 'com.rakesh.t3code.t3rn-update.plist'
+        original = plistlib.dumps({'Label': 'com.rakesh.t3code.t3rn-update', 'existing': True})
+        nightly.write_bytes(original)
+        (self.root / 'fail').touch()
+        result = self.install('nightly')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(nightly.read_bytes(), original)
+        self.assertTrue(self.legacy.exists())
+        self.assertTrue(self.calls.read_text().splitlines()[-1].endswith(nightly.name))
+
+    def test_invalid_role_does_not_change_any_jobs(self):
+        result = self.install('nightly', 'typo')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(self.legacy.exists())
+        self.assertFalse(self.calls.exists())
 
 
 if __name__ == '__main__':

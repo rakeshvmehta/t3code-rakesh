@@ -25,14 +25,9 @@ export T3CODE_DESKTOP_MOCK_UPDATES=false
 
 pnpm install --frozen-lockfile
 
-echo "build.sh: running sidebar sections tests"
-pnpm exec vp test run \
-  apps/web/src/components/sidebarSections/ \
-  apps/web/src/components/Sidebar.logic.test.ts \
-  apps/web/src/components/Sidebar.drag.test.ts
-(cd apps/web && pnpm exec playwright install chromium-headless-shell >/dev/null &&
-  pnpm exec vp test run --project browser src/components/Sidebar)
-(cd scripts && pnpm exec vp test run --config ../vite.config.ts --dir . rakesh/identity.test.ts)
+echo "build.sh: validating custom changes against $build_tag"
+(cd apps/web && pnpm exec playwright install chromium-headless-shell >/dev/null)
+pnpm exec vp run check:changed "$build_tag"
 
 version="$build_tag"
 version="${version#v}"

@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 from pathlib import Path
 import shutil
@@ -17,29 +18,47 @@ class StableUpdaterTest(unittest.TestCase):
         self.state = self.root / 'state'
         self.state.mkdir()
         self.builds = self.root / 'builds'
+        self.events = self.root / 'events'
+        self.entry = 'stable-update.sh'
+        self.log_prefix = 'stable-update'
+        self.nightly_tag = 'v0.1.8-nightly.20261111.123'
         self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1',
                         GIT_CONFIG_GLOBAL='/dev/null',
                         GIT_AUTHOR_NAME='Test', GIT_AUTHOR_EMAIL='test@example.com',
                         GIT_COMMITTER_NAME='Test', GIT_COMMITTER_EMAIL='test@example.com',
                         RAKESH_UPDATE_STATE_DIR=str(self.state),
                         RAKESH_UPDATE_WORKTREE=str(self.root / 'worktree'),
+                        RAKESH_UPDATE_INSTALL_TARGET=str(self.root / 'app'),
                         RAKESH_UPDATE_TAG='v0.1.7')
         self.git('init', '-q', '-b', 'main', str(self.upstream))
         scripts = self.upstream / 'scripts/rakesh'
         scripts.mkdir(parents=True)
-        shutil.copyfile(Path(__file__).with_name('stable-update.sh'),
-                        scripts / 'stable-update.sh')
+        for name in ('stable-update.sh', 'release-update.sh', 't3rn-update.sh',
+                     'build-nightly.sh', 'select-release.py'):
+            source = Path(__file__).with_name(name)
+            if source.exists():
+                shutil.copyfile(source, scripts / name)
         (scripts / 'env.sh').write_text(f'''
 RAKESH_REPO_ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/../.." && pwd)"
 RAKESH_LOG_DIR='{self.root / 'logs'}'
-RAKESH_APP_NAME='Test T3'
+RAKESH_APP_NAME="${{RAKESH_APP_NAME:-Test T3}}"
 RAKESH_INSTALL_PATH='{self.root / 'app'}'
 RAKESH_BUNDLE_ID='test.t3'
 rakesh_notify() {{ :; }}
 rakesh_app_running() {{ return 1; }}
+rakesh_other_app_running() {{ return 1; }}
 curl() {{ return 0; }}
+ditto() {{ cp -R "$1" "$2"; }}
 ''')
-        (scripts / 'update-alerts.py').write_text('')
+        (scripts / 'update-alerts.py').write_text(
+            f'import json,sys\nwith open({str(self.events)!r}, "a") as f: '
+            'f.write(json.dumps(sys.argv[1:]) + "\\n")\n')
+        (scripts / 'install.sh').write_text('''#!/bin/bash
+set -e
+rm -rf "$1"
+cp -R "$RAKESH_SOURCE_APP" "$1"
+''')
+        (scripts / 'install.sh').chmod(0o755)
         (scripts / 'build.sh').write_text(
             f'#!/bin/bash\necho build >> "{self.builds}"\nexit 1\n')
         (scripts / 'build.sh').chmod(0o755)
@@ -57,7 +76,7 @@ curl() {{ return 0; }}
         (self.upstream / 'nightly-only').write_text('nightly')
         self.git('-C', str(self.upstream), 'add', '.')
         self.git('-C', str(self.upstream), 'commit', '-qm', 'nightly only')
-        self.git('-C', str(self.upstream), 'tag', 'v0.1.8-nightly.test')
+        self.git('-C', str(self.upstream), 'tag', self.nightly_tag)
         self.today = datetime.date.today().isoformat()
 
     def git(self, *args):
@@ -65,11 +84,42 @@ curl() {{ return 0; }}
                               capture_output=True, text=True).stdout.strip()
 
     def run_updater(self):
-        return subprocess.run(['bash', str(self.repo / 'scripts/rakesh/stable-update.sh')],
+        return subprocess.run(['bash', str(self.repo / 'scripts/rakesh' / self.entry)],
                               env=self.env, capture_output=True, text=True, timeout=15)
 
     def log(self):
-        return (self.root / 'logs' / f'stable-update-{self.today}.log').read_text()
+        path = self.root / 'logs' / f'{self.log_prefix}-{self.today}.log'
+        return path.read_text() if path.exists() else 'Updater did not reach its log'
+
+    def installed(self, version):
+        import plistlib
+        path = self.root / 'app/Contents/Info.plist'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(plistlib.dumps({'CFBundleShortVersionString': version}))
+
+    def nightly(self):
+        self.git('-C', str(self.repo), 'switch', '-qc', 'rakesh/nightly')
+        self.env['RAKESH_UPDATE_TAG'] = self.nightly_tag
+        self.entry = 't3rn-update.sh'
+        self.log_prefix = 't3rn-update'
+
+    def successful_build(self):
+        script = self.repo / 'scripts/rakesh/build.sh'
+        script.write_text(f'#!/bin/bash\nset -e\necho build >> "{self.builds}"\n' + '''python3 - <<'BUILD'
+from pathlib import Path
+import os, plistlib, subprocess
+name = os.environ.get('RAKESH_APP_NAME', 'Test T3')
+output = 'release-rakesh-nightly' if 'Nightly' in name else 'release-rakesh'
+app = Path(output) / (name + '.app') / 'Contents'
+app.mkdir(parents=True)
+version = os.environ.get('RAKESH_BUILD_TAG', 'v0.1.7').removeprefix('v')
+with (app / 'Info.plist').open('wb') as f:
+    plistlib.dump({'CFBundleShortVersionString': version}, f)
+(app / 'source-head').write_text(subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip())
+BUILD
+''')
+        self.git('-C', str(self.repo), 'add', '.')
+        self.git('-C', str(self.repo), 'commit', '-qm', 'test build boundary')
 
     def test_failed_build_is_retried_in_the_same_day(self):
         self.assertEqual(self.run_updater().returncode, 1, self.log())
@@ -111,18 +161,169 @@ curl() {{ return 0; }}
         self.run_updater()
         refs = self.git('-C', str(self.repo), 'for-each-ref', '--format=%(refname)')
         self.assertIn('refs/tags/v0.1.7', refs)
-        self.assertNotIn('refs/tags/v0.1.8-nightly.test', refs)
+        self.assertNotIn('refs/tags/' + self.nightly_tag, refs)
         self.assertNotIn('refs/remotes/upstream/nightly', refs)
 
     def test_successful_no_update_check_skips_repeated_work(self):
         self.git('-C', str(self.repo), 'fetch', '-q', '--no-tags', 'upstream',
                  'refs/tags/v0.1.7:refs/tags/v0.1.7')
         self.git('-C', str(self.repo), 'merge', '-q', '--ff-only', 'v0.1.7')
+        self.installed('0.1.7')
         self.assertEqual(self.run_updater().returncode, 0, self.log())
         self.git('-C', str(self.repo), 'remote', 'set-url', 'upstream',
                  str(self.root / 'offline'))
         self.assertEqual(self.run_updater().returncode, 0, self.log())
         self.assertFalse(self.builds.exists())
+
+    def test_nightly_build_failure_retries_without_advancing_source_or_installing(self):
+        self.nightly()
+        before = self.git('-C', str(self.repo), 'rev-parse', 'rakesh/nightly')
+        for _ in range(2):
+            result = self.run_updater()
+            self.assertEqual(result.returncode, 1, result.stderr + self.log())
+        self.assertEqual(self.builds.read_text().splitlines(), ['build', 'build'])
+        self.assertEqual(self.git('-C', str(self.repo), 'rev-parse', 'rakesh/nightly'), before)
+        self.assertFalse((self.root / 'app').exists())
+
+    def test_nightly_publishes_built_source_then_installs_its_own_app(self):
+        self.successful_build()
+        self.nightly()
+        origin = self.root / 'origin'
+        self.git('init', '-q', '--bare', str(origin))
+        self.git('-C', str(self.repo), 'remote', 'add', 'origin', str(origin))
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 0, result.stderr + self.log())
+        self.assertEqual(self.git('-C', str(origin), 'rev-parse', 'rakesh/nightly'),
+                         self.git('-C', str(self.repo), 'rev-parse', 'rakesh/nightly'))
+        self.assertIn('CFBundleShortVersionString', (self.root / 'app/Contents/Info.plist').read_text())
+        import plistlib
+        info = plistlib.loads((self.root / 'app/Contents/Info.plist').read_bytes())
+        self.assertEqual(info['CFBundleShortVersionString'], '0.1.8-nightly.20261111.123')
+        self.assertFalse((self.state / 'staged').exists())
+        events = [json.loads(line) for line in self.events.read_text().splitlines()]
+        installed = next(event for event in events if event[0] == 'installed')
+        self.assertEqual(installed[installed.index('--product') + 1], 'T3-RN')
+
+    def test_nightly_picks_up_custom_stable_changes_without_a_new_upstream_tag(self):
+        self.successful_build()
+        self.nightly()
+        self.git('-C', str(self.repo), 'fetch', '-q', '--no-tags', 'upstream',
+                 f'refs/tags/{self.nightly_tag}:refs/tags/{self.nightly_tag}')
+        self.git('-C', str(self.repo), 'merge', '-qm', 'existing nightly', self.nightly_tag)
+        self.installed('0.1.8-nightly.20261111.123')
+        self.git('-C', str(self.repo), 'switch', '-q', 'rakesh/main')
+        (self.repo / 'custom-sections-improvement').write_text('preserve this')
+        self.git('-C', str(self.repo), 'add', '.')
+        self.git('-C', str(self.repo), 'commit', '-qm', 'custom improvement')
+        custom_head = self.git('-C', str(self.repo), 'rev-parse', 'HEAD')
+        self.git('-C', str(self.repo), 'switch', '-q', 'rakesh/nightly')
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 0, result.stderr + self.log())
+        self.assertEqual((self.repo / 'custom-sections-improvement').read_text(), 'preserve this')
+        self.git('-C', str(self.repo), 'merge-base', '--is-ancestor', custom_head, 'HEAD')
+        self.assertTrue((self.root / 'app/Contents/Info.plist').exists())
+        self.assertEqual((self.root / 'app/Contents/source-head').read_text(),
+                         self.git('-C', str(self.repo), 'rev-parse', 'HEAD'))
+
+    def test_no_update_check_does_not_publish_unbuilt_local_commits(self):
+        self.nightly()
+        self.git('-C', str(self.repo), 'fetch', '-q', '--no-tags', 'upstream',
+                 f'refs/tags/{self.nightly_tag}:refs/tags/{self.nightly_tag}')
+        self.git('-C', str(self.repo), 'merge', '-qm', 'existing nightly', self.nightly_tag)
+        self.installed('0.1.8-nightly.20261111.123')
+        origin = self.root / 'origin'
+        self.git('clone', '-q', '--bare', str(self.repo), str(origin))
+        self.git('-C', str(self.repo), 'remote', 'add', 'origin', str(origin))
+        published = self.git('-C', str(origin), 'rev-parse', 'rakesh/nightly')
+        (self.repo / 'unbuilt-change').write_text('not validated')
+        self.git('-C', str(self.repo), 'add', '.')
+        self.git('-C', str(self.repo), 'commit', '-qm', 'unbuilt local change')
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 0, result.stderr + self.log())
+        self.assertEqual(self.git('-C', str(origin), 'rev-parse', 'rakesh/nightly'), published)
+
+    def test_failed_publication_retries_built_source_without_rebuilding(self):
+        self.successful_build()
+        self.nightly()
+        origin = self.root / 'origin'
+        self.git('init', '-q', '--bare', str(origin))
+        self.git('-C', str(self.repo), 'remote', 'add', 'origin', str(self.root / 'offline'))
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 0, result.stderr + self.log())
+        self.assertTrue((self.root / 'app/Contents/Info.plist').exists())
+        self.git('-C', str(self.repo), 'remote', 'set-url', 'origin', str(origin))
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 0, result.stderr + self.log())
+        published = subprocess.run(['git', '-C', str(origin), 'rev-parse', 'rakesh/nightly'],
+                                   env=self.env, capture_output=True, text=True)
+        self.assertEqual(published.returncode, 0, published.stderr)
+        self.assertEqual(published.stdout.strip(), self.git('-C', str(self.repo), 'rev-parse', 'HEAD'))
+        self.assertEqual(self.builds.read_text().splitlines(), ['build'])
+        self.assertFalse((self.state / 'publish-ready').exists())
+
+    def test_interrupted_staging_never_becomes_an_installable_partial_app(self):
+        self.successful_build()
+        self.nightly()
+        with (self.repo / 'scripts/rakesh/env.sh').open('a') as stream:
+            stream.write('''
+ditto() { mkdir -p "$2/Contents"; echo incomplete >"$2/Contents/partial"; return 1; }
+''')
+        for _ in range(2):
+            result = self.run_updater()
+            self.assertEqual(result.returncode, 1, result.stderr + self.log())
+        self.assertFalse((self.root / 'app').exists())
+        self.assertFalse((self.state / 'staged').exists())
+
+    def test_follower_sees_a_later_publication_after_an_earlier_no_update_check(self):
+        self.git('-C', str(self.repo), 'remote', 'rename', 'upstream', 'origin')
+        self.env['RAKESH_UPDATE_MODE'] = 'follow'
+        self.git('-C', str(self.upstream), 'branch', 'rakesh/main', 'v0.1.3')
+        self.installed('0.1.3')
+        self.assertEqual(self.run_updater().returncode, 0, self.log())
+        self.git('-C', str(self.upstream), 'branch', '-f', 'rakesh/main', 'v0.1.7')
+        self.assertEqual(self.run_updater().returncode, 1, self.log())
+        self.assertEqual(self.builds.read_text().splitlines(), ['build'])
+
+    def test_current_source_with_an_older_installed_app_is_rebuilt(self):
+        self.git('-C', str(self.repo), 'fetch', '-q', '--no-tags', 'upstream',
+                 'refs/tags/v0.1.7:refs/tags/v0.1.7')
+        self.git('-C', str(self.repo), 'merge', '-q', '--ff-only', 'v0.1.7')
+        self.installed('0.1.3')
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 1, result.stderr + self.log())
+        self.assertEqual(self.builds.read_text().splitlines(), ['build'])
+
+    def test_update_does_not_move_a_branch_checked_out_in_another_worktree(self):
+        self.successful_build()
+        self.nightly()
+        before = self.git('-C', str(self.repo), 'rev-parse', 'HEAD')
+        self.git('-C', str(self.repo), 'switch', '-q', 'rakesh/main')
+        other = self.root / 'user-worktree'
+        self.git('-C', str(self.repo), 'worktree', 'add', '-q', str(other), 'rakesh/nightly')
+        result = self.run_updater()
+        self.assertEqual(result.returncode, 1, result.stderr + self.log())
+        self.assertEqual(self.git('-C', str(other), 'rev-parse', 'HEAD'), before)
+        self.assertFalse(self.builds.exists())
+
+
+class ReleaseSelectionTest(unittest.TestCase):
+    def test_selects_newest_published_nightly_and_excludes_stable_preview_and_draft(self):
+        releases = [
+            {'tag_name': 'v0.1.10-nightly.20261111.100', 'prerelease': True,
+             'draft': False, 'published_at': '2026-11-11T01:00:00Z'},
+            {'tag_name': 'v0.1.10-preview.20261111.200', 'prerelease': True,
+             'draft': False, 'published_at': '2026-11-11T04:00:00Z'},
+            {'tag_name': 'v0.1.9', 'prerelease': False,
+             'draft': False, 'published_at': '2026-11-11T05:00:00Z'},
+            {'tag_name': 'v0.1.10-nightly.20261111.300', 'prerelease': True,
+             'draft': True, 'published_at': '2026-11-11T06:00:00Z'},
+            {'tag_name': 'v0.1.10-nightly.20261111.150', 'prerelease': True,
+             'draft': False, 'published_at': '2026-11-11T03:00:00Z'},
+        ]
+        result = subprocess.run(['python3', str(Path(__file__).with_name('select-release.py')),
+                                 'nightly'], input=json.dumps(releases), text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), 'v0.1.10-nightly.20261111.150')
 
 
 if __name__ == '__main__':

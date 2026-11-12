@@ -100,8 +100,9 @@ Our edits to upstream files are deliberately small:
 - Upstream's opt-in project-folder mode uses its own active rows and keyboard
   order, without custom section headers or the New section button. Switching
   modes preserves stored custom sections and assignments; notes work in both.
-- The app builds as "T3 Code (Rakesh)" / `com.rakesh.t3code` with no update
-  feed.
+- Stable builds as "T3 Code (Rakesh)" / `com.rakesh.t3code`; nightly builds as
+  "T3 Code (Rakesh Nightly)" / `com.rakesh.t3code.nightly`. Neither has an
+  upstream update feed. The generated run context identifies the channel.
 
 ## How to resolve
 

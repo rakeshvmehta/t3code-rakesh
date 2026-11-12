@@ -28,25 +28,26 @@ def save(path, state):
 
 
 def handle_event(path, slack, event, **details):
+    product = details.get('product', 'T3-R')
     state = json.loads(path.read_text()) if path.exists() else {'incident': None, 'outbox': []}
     incident = state['incident']
     if event == 'failure' and incident is None:
         incident = uuid.uuid4().hex[:12]
         state['incident'] = incident
-        text = (f"T3-R update failed at {details['stage']}. "
+        text = (f"{product} update failed at {details['stage']}. "
                 f"Installed: {details['installed']}; requested: {details['target']}. "
                 f"The update did not finish. Log on your Mac: {details['log']}.")
         state['outbox'].append({'kind': 'failure', 'incident': incident, 'status': 'pending',
-                                'text': f'{text} [T3-R {incident} failure]'})
+                                'text': f'{text} [{product} {incident} failure]'})
     elif event == 'installed' and incident is not None:
         # A rejected failure should not arrive after its successful installation.
         for item in state['outbox']:
             if item['incident'] == incident and item['status'] == 'pending':
                 item['status'] = 'superseded'
-        text = (f"T3-R update recovered: {details['installed']} is installed. "
+        text = (f"{product} update recovered: {details['installed']} is installed. "
                 f"Log on your Mac: {details['log']}.")
         state['outbox'].append({'kind': 'recovery', 'incident': incident, 'status': 'pending',
-                                'text': f'{text} [T3-R {incident} recovery]'})
+                                'text': f'{text} [{product} {incident} recovery]'})
         state['incident'] = None
     save(path, state)
     for item in state['outbox']:
@@ -159,12 +160,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('event', choices=['failure', 'installed', 'flush'])
     parser.add_argument('--state-dir', type=Path, required=True)
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--product', choices=['T3-R', 'T3-RN'], default='T3-R')
     parser.add_argument('--installed', default='unknown')
     parser.add_argument('--target', default='unknown')
     parser.add_argument('--stage', default='update')
     parser.add_argument('--log', default='~/Library/Logs/t3code-rakesh/')
     args = parser.parse_args()
-    config_path = args.state_dir / 'slack-alerts.json'
+    config_path = args.config or args.state_dir / 'slack-alerts.json'
     if not config_path.exists():
         return 0
     try:
@@ -172,14 +175,15 @@ def main():
         for key in ('account_id', 'team_id', 'user_id', 'channel_id', 'composio_bin'):
             if not isinstance(config.get(key), str) or not config[key]:
                 raise Rejected('Incomplete Slack alert configuration')
+        args.state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         with (args.state_dir / 'slack-alerts.lock').open('w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             handle_event(args.state_dir / 'slack-alert-state.json', ComposioSlack(config),
                          args.event, installed=args.installed, target=args.target,
-                         stage=args.stage, log=args.log)
+                         stage=args.stage, log=args.log, product=args.product)
     except (Rejected, Uncertain, OSError, ValueError, KeyError) as error:
         # Provider output can contain credentials or raw logs; never echo it.
-        print(f'T3-R Slack alert pending ({type(error).__name__}); see local alert state',
+        print(f'{args.product} Slack alert pending ({type(error).__name__}); see local alert state',
               file=sys.stderr)
         return 1
     return 0

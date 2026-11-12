@@ -27,6 +27,15 @@ rakesh_app_running() {
   [[ "$(osascript -e "application id \"$RAKESH_BUNDLE_ID\" is running" 2>/dev/null)" == "true" ]]
 }
 
+rakesh_other_app_running() {
+  local bundle
+  for bundle in com.rakesh.t3code com.rakesh.t3code.nightly com.t3tools.t3code com.t3tools.t3code.nightly; do
+    [[ "$bundle" == "$RAKESH_BUNDLE_ID" ]] && continue
+    [[ "$(osascript -e "application id \"$bundle\" is running" 2>/dev/null)" == true ]] && return 0
+  done
+  return 1
+}
+
 rakesh_notify() {
   osascript -e "display notification \"$1\" with title \"$RAKESH_APP_NAME\"" >/dev/null 2>&1 || true
 }
