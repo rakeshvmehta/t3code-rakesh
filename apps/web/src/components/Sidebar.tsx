@@ -3240,7 +3240,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 </Combobox>
               }
               onNewProject={openAddProjectCommandPalette}
-              {...(projectFolders === null
+              {...(projectFolders === null && sectionsController.canManage
                 ? { onNewSection: sectionsController.startNewSection }
                 : {})}
               onNewThread={handleNewThreadClick}

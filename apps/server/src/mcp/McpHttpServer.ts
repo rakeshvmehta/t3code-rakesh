@@ -1,3 +1,6 @@
+import { SidebarToolkit } from "./toolkits/sidebar/tools.ts";
+import * as SidebarHandlers from "./toolkits/sidebar/handlers.ts";
+import * as SidebarMcpService from "./SidebarMcpService.ts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -1175,6 +1178,9 @@ export const layerOrchestratorToolkit = toolkitRegistration(
 ).pipe(Layer.provide(OrchestratorMcpService.layer), Layer.provide(ThreadMetadataMcpService.layer));
 
 export const layerThreadToolkit = toolkitRegistration(ThreadToolkit, ThreadHandlers.layer);
+const layerSidebarToolkit = toolkitRegistration(SidebarToolkit, SidebarHandlers.layer).pipe(
+  Layer.provide(SidebarMcpService.layer),
+);
 
 const layerWorktreeToolkitRegistration = toolkitRegistration(
   WorktreeToolkit,
@@ -1252,6 +1258,7 @@ export const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,
+  layerSidebarToolkit,
   layerAttachmentToolkit,
   layerProjectRegistration,
   layerEnvironmentToolkit,

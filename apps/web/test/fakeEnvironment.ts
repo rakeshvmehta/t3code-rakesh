@@ -1,3 +1,14 @@
+import {
+  EMPTY_SIDEBAR_ORGANIZATION,
+  SidebarOrganizationError,
+  type SidebarOrganizationState,
+  type SidebarOrganizationMutation,
+  type SidebarOrganizationImport,
+} from "@t3tools/contracts/sidebarOrganization";
+import {
+  applySidebarOrganizationMutation,
+  applySidebarOrganizationImport,
+} from "@t3tools/shared/sidebarOrganization";
 // An in-process environment for app render scenarios: a fetch stub for its HTTP API and a
 // session that answers the shell, thread and config subscriptions from fixtures. Other RPCs
 // stay pending so nothing retries on timers. Everything above the wire is the app's own.
@@ -107,10 +118,29 @@ const baseServerConfig: ServerConfig = {
   keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
 };
 // A server only leaves threads out of the shell when it serves their families.
-const serverConfig = (): ServerConfig =>
-  threads.some((thread) => thread.olderSettled)
-    ? { ...baseServerConfig, shellThreadFamilies: true }
-    : baseServerConfig;
+let sidebarState: SidebarOrganizationState | null = null;
+let rejectSidebarWrite = false;
+let rejectSidebarImport = false;
+let importAttempts = 0;
+const sidebarSubscribers = new Set<Queue.Queue<SidebarOrganizationState>>();
+const serverConfig = (): ServerConfig => ({
+  ...baseServerConfig,
+  ...(threads.some((thread) => thread.olderSettled) ? { shellThreadFamilies: true } : {}),
+  environment: {
+    ...baseServerConfig.environment,
+    capabilities: {
+      ...baseServerConfig.environment.capabilities,
+      ...(sidebarState === null ? {} : { sidebarOrganization: true }),
+    },
+  },
+});
+const publishSidebar = Effect.fn("fakeEnvironment.publishSidebar")(function* (
+  next: SidebarOrganizationState,
+) {
+  sidebarState = next;
+  for (const subscriber of sidebarSubscribers) yield* Queue.offer(subscriber, next);
+  return next;
+});
 
 const project: OrchestrationProjectShell = {
   id: PROJECT_ID,
@@ -348,6 +378,35 @@ const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>
   );
 
 const handlers: Record<string, (input: never) => unknown> = {
+  [WS_METHODS.sidebarWatch]: () =>
+    subscribe([sidebarState ?? EMPTY_SIDEBAR_ORGANIZATION], (queue) => {
+      sidebarSubscribers.add(queue);
+      return () => {
+        sidebarSubscribers.delete(queue);
+      };
+    }),
+  [WS_METHODS.sidebarMutate]: (input: SidebarOrganizationMutation) =>
+    Effect.suspend(() => {
+      if (rejectSidebarWrite) {
+        rejectSidebarWrite = false;
+        return Effect.fail(new SidebarOrganizationError({ reason: "storage_unavailable" }));
+      }
+      return applySidebarOrganizationMutation(
+        sidebarState ?? EMPTY_SIDEBAR_ORGANIZATION,
+        input,
+      ).pipe(Effect.flatMap(publishSidebar));
+    }),
+  [WS_METHODS.sidebarImport]: (input: SidebarOrganizationImport) =>
+    Effect.suspend(() => {
+      importAttempts++;
+      if (rejectSidebarImport) {
+        rejectSidebarImport = false;
+        return Effect.fail(new SidebarOrganizationError({ reason: "storage_unavailable" }));
+      }
+      return publishSidebar(
+        applySidebarOrganizationImport(sidebarState ?? EMPTY_SIDEBAR_ORGANIZATION, input),
+      );
+    }),
   // Recorded, and accepted only when the scenario asks, since a pending command holds every
   // later command on its thread. Accepted commands' events never arrive.
   [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command: OrchestrationV2Command) =>
@@ -458,22 +517,33 @@ export const fakeDriver = {
 export type FakeDriver = typeof fakeDriver;
 
 const realFetch = globalThis.fetch;
-const encodedDescriptor = Schema.encodeSync(ExecutionEnvironmentDescriptor)(
+const encodeDescriptor = Schema.encodeSync(ExecutionEnvironmentDescriptor);
+const encodedDescriptor = encodeDescriptor(
   Schema.decodeUnknownSync(ExecutionEnvironmentDescriptor)(descriptor),
 );
 
 /** Serves the environment's HTTP API and these threads until disposed. */
 export function installFakeEnvironment(
   fixtures: ReadonlyArray<FakeThread>,
-  options?: { readonly acceptCommands?: boolean },
+  options?: {
+    readonly acceptCommands?: boolean;
+    readonly sidebarOrganization?: SidebarOrganizationState;
+  },
 ): Disposable {
   threads = fixtures;
   dispatched = [];
   acceptCommands = options?.acceptCommands === true;
+  sidebarState = options?.sidebarOrganization ?? null;
+  rejectSidebarWrite = false;
+  rejectSidebarImport = false;
+  importAttempts = 0;
   globalThis.fetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
     if (url.origin !== window.location.origin) return realFetch(input, init);
-    if (url.pathname === "/.well-known/t3/environment") return json(encodedDescriptor);
+    if (url.pathname === "/.well-known/t3/environment")
+      return json(
+        sidebarState === null ? encodedDescriptor : encodeDescriptor(serverConfig().environment),
+      );
     if (url.pathname === "/api/auth/session") {
       return json({
         authenticated: true,
@@ -493,6 +563,8 @@ export function installFakeEnvironment(
       threads = [];
       dispatched = [];
       acceptCommands = false;
+      sidebarState = null;
+      sidebarSubscribers.clear();
     },
   };
 }
@@ -544,4 +616,29 @@ export { userItem };
 export async function emitVcsStatus(event: VcsStatusStreamEvent): Promise<void> {
   if (vcsStatusSubscriber === null) throw new Error("No VCS status subscription");
   await Effect.runPromise(Queue.offer(vcsStatusSubscriber, event));
+}
+
+/** Delivers a server-side metadata change through the same subscription used for tool writes. */
+export function emitSidebarMutation(
+  input: SidebarOrganizationMutation,
+): Promise<SidebarOrganizationState> {
+  return Effect.runPromise(
+    applySidebarOrganizationMutation(sidebarState ?? EMPTY_SIDEBAR_ORGANIZATION, input).pipe(
+      Effect.flatMap(publishSidebar),
+    ),
+  );
+}
+export function sidebarOrganizationSnapshot(): SidebarOrganizationState | null {
+  return sidebarState;
+}
+
+export function rejectNextSidebarMutation(): void {
+  rejectSidebarWrite = true;
+}
+
+export function rejectNextSidebarImport(): void {
+  rejectSidebarImport = true;
+}
+export function sidebarImportAttempts(): number {
+  return importAttempts;
 }

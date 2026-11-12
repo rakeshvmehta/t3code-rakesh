@@ -546,6 +546,14 @@
     "./speech": {
       "types": "./src/speech.ts",
       "import": "./src/speech.ts"
+    },
+    "./orderKey": {
+      "types": "./src/orderKey.ts",
+      "import": "./src/orderKey.ts"
+    },
+    "./sidebarOrganization": {
+      "types": "./src/sidebarOrganization.ts",
+      "import": "./src/sidebarOrganization.ts"
     }
   },
   "scripts": {

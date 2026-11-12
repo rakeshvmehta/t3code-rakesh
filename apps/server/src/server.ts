@@ -1,3 +1,6 @@
+import * as SidebarOrganization from "./sidebar/SidebarOrganization.ts";
+import * as SidebarOrganizationApplication from "./sidebar/SidebarOrganizationApplication.ts";
+import * as ThreadCommandExecutor from "./orchestration-v2/ThreadCommandExecutor.ts";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
 import * as Random from "effect/Random";
@@ -842,6 +845,12 @@ const layerMakeRoutes = Layer.mergeAll(
   ),
   Layer.provide(CloudSpeech.layer.pipe(Layer.provide(SecretResolver.layer))),
   Layer.provide(layerServerSettings),
+  Layer.provide(
+    SidebarOrganizationApplication.layer.pipe(
+      Layer.provideMerge(SidebarOrganization.layer),
+      Layer.provide(ThreadCommandExecutor.layer),
+    ),
+  ),
   Layer.provide(PreviewAutomationBroker.layer),
   Layer.provide(ServerSelfUpdate.layer.pipe(Layer.provide(layerDesktopAppUpdate))),
   Layer.provide(layerCommandReadiness),

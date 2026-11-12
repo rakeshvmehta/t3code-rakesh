@@ -1,3 +1,5 @@
+import * as SidebarOrganization from "./sidebar/SidebarOrganization.ts";
+import * as SidebarOrganizationApplication from "./sidebar/SidebarOrganizationApplication.ts";
 import * as SecretResolver from "@t3tools/secret-provider-core/server/SecretResolver";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -841,6 +843,8 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(TerminalManager.TerminalManager)({}),
   Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
   Layer.mock(ThreadManagement.ThreadManagementService)({}),
+  Layer.mock(SidebarOrganization.SidebarOrganization)({}),
+  Layer.mock(SidebarOrganizationApplication.SidebarOrganizationApplication)({}),
   Layer.mock(ThreadSearch.ThreadSearch)({}),
   Layer.mock(UsageService.UsageService)({}),
   Layer.mock(VcsProvisioningService.VcsProvisioningService)({}),

@@ -74,6 +74,13 @@ Our edits to upstream files are deliberately small:
   `com.rakesh.t3code.nightly`, the T3-R `RakeshBrandMark`, and the
   T3-R (Nightly) display branding in `DesktopEnvironment`/`DesktopAppIdentity`.
 
+- Shared organization uses `apps/server/src/sidebar/`, the sidebar MCP toolkit,
+  and the `sidebar.organization.*` RPCs. Keep their existing thread/environment
+  permission guards, the single shared service instance in HTTP/WS/MCP, and
+  browser migration with backups/tombstones. Sidebar hooks consume this state;
+  do not revert them to independent localStorage writes. Peer cache revisions
+  track canonical thread changes, not cache updates, to prevent echo loops.
+
 ## The contract (must still hold after the merge)
 
 - A "New section" button (lucide `ListPlusIcon`, tooltip "New section") sits

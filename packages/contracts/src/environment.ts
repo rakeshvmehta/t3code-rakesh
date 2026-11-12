@@ -157,6 +157,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   commandOutputStreaming: Schema.optionalKey(Schema.Boolean),
   /** Hosts headless Chromium tabs streamed over /api/preview-stream for clients without a local runtime. */
   serverBrowser: Schema.optionalKey(Schema.Boolean),
+  sidebarOrganization: Schema.optionalKey(Schema.Boolean),
   /** Server links to other environments (`PeerLink`) and its agents can work
       in them. Absent on servers from before linking, which clients must not
       offer linking for. */

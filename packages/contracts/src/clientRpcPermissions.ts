@@ -1,3 +1,4 @@
+import { SidebarOrganizationMutation, SidebarOrganizationImport } from "./sidebarOrganization.ts";
 import * as Schema from "effect/Schema";
 import { GitPreparePullRequestThreadInput, GitRunStackedActionInput } from "./git.ts";
 import {
@@ -17,6 +18,9 @@ import { WS_METHODS } from "./rpc.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
+  [WS_METHODS.sidebarMutate]: AuthOrchestrationOperateScope,
+  [WS_METHODS.sidebarImport]: AuthOrchestrationOperateScope,
+  [WS_METHODS.sidebarCachePeer]: AuthOrchestrationOperateScope,
   [WS_METHODS.providerAuthRemoveMethod]: AuthProvidersManageScope,
   [WS_METHODS.previewClose]: AuthPreviewOperateScope,
   // Stopping a server signals its processes, as closing a terminal does.
@@ -80,6 +84,8 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
 } as const;
 export type ClientGuardedRpcTag = keyof typeof CLIENT_GUARDED_RPC_SCOPES;
 
+const decodeSidebarMutation = Schema.decodeUnknownSync(SidebarOrganizationMutation);
+const decodeSidebarImport = Schema.decodeUnknownSync(SidebarOrganizationImport);
 const decodePrepareThread = Schema.decodeUnknownSync(GitPreparePullRequestThreadInput);
 const decodeStackedAction = Schema.decodeUnknownSync(GitRunStackedActionInput);
 
@@ -87,6 +93,21 @@ export function clientRpcRequiredScopes(
   method: string,
   input: unknown,
 ): readonly AuthEnvironmentScope[] {
+  if (method === WS_METHODS.sidebarMutate && input !== undefined) {
+    const mutation = decodeSidebarMutation(input);
+    return [
+      mutation.type.startsWith("section.") ? AuthSettingsWriteScope : AuthOrchestrationOperateScope,
+    ];
+  }
+  if (method === WS_METHODS.sidebarImport && input !== undefined) {
+    const legacy = decodeSidebarImport(input);
+    return [
+      ...(legacy.sections.length > 0 ? [AuthSettingsWriteScope] : []),
+      ...(Object.keys(legacy.threads).length > 0 || legacy.sections.length === 0
+        ? [AuthOrchestrationOperateScope]
+        : []),
+    ];
+  }
   if (method === WS_METHODS.gitPreparePullRequestThread && input !== undefined) {
     const payload = decodePrepareThread(input);
     if (payload.mode === "worktree" && payload.threadId !== undefined)

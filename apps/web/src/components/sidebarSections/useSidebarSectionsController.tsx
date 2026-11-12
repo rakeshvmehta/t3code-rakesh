@@ -55,7 +55,8 @@ export function useSidebarSectionsController(input: {
   ) => {
     const sectionId = resolveDropSectionId(fullItems, activeKey, overId);
     const target = resolveSidebarDropTarget(fullItems, activeKey, overId);
-    if (sectionId === undefined || target === null) return null;
+    if (sectionId === undefined || target === null || !sections.canChangeThread(activeKey))
+      return null;
     return placeThread(state, activeKey, sectionId, target.activeOrder) !== state
       ? { sectionId, orderedKeys: target.activeOrder }
       : null;
@@ -80,7 +81,7 @@ export function useSidebarSectionsController(input: {
           sectionId === null ? "sidebar-chats-section-toggle" : "sidebar-custom-section-toggle"
         }
         menu={
-          sectionId === null
+          sectionId === null || !sections.canManage
             ? null
             : {
                 canMoveUp: index > 0,
@@ -93,8 +94,10 @@ export function useSidebarSectionsController(input: {
         }
         editing={sectionId !== null && editing?.id === sectionId}
         onCommitName={(name) => {
-          if (sectionId !== null) sections.rename(sectionId, name);
-          setEditing(null);
+          if (sectionId !== null)
+            void sections.rename(sectionId, name).then((saved) => {
+              if (saved) setEditing(null);
+            });
         }}
         onCancelEdit={() => {
           if (sectionId !== null && editing?.isNew) sections.remove(sectionId);
@@ -106,6 +109,7 @@ export function useSidebarSectionsController(input: {
 
   return {
     hasCustomSections,
+    canManage: sections.canManage,
     hasCustomDropTarget: typeof dropTargetSectionId === "string",
     isCustomDrop: (fullItems: readonly SidebarListItem[], activeKey: string, overId: string) =>
       typeof resolveDropSectionId(fullItems, activeKey, overId) === "string",
@@ -190,8 +194,10 @@ export function useSidebarSectionsController(input: {
         </li>
       ),
     startNewSection: () => {
-      const id = sections.add(NEW_SECTION_NAME);
-      setEditing({ id, isNew: true });
+      if (!sections.canManage) return;
+      void sections.add(NEW_SECTION_NAME).then((id) => {
+        if (id !== null) setEditing({ id, isNew: true });
+      });
     },
     renderHeader,
   };
