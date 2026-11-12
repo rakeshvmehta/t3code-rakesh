@@ -123,12 +123,16 @@ fi
 echo $$ >"$LOCK_DIR/pid"
 trap 'release_lock' EXIT
 
-if [[ "$(git -C "$REPO" symbolic-ref --quiet --short HEAD || true)" != "$BRANCH" ]]; then
-  checkouts="$(git -C "$REPO" worktree list --porcelain)"
-  if awk -v branch="refs/heads/$BRANCH" '$1 == "branch" && $2 == branch { found = 1 } END { exit !found }' <<<"$checkouts"; then
-    fail "$BRANCH is checked out in another worktree; leaving it unchanged"
+assert_checkout_owner() {
+  if [[ "$(git -C "$REPO" symbolic-ref --quiet --short HEAD || true)" != "$BRANCH" ]]; then
+    local checkouts
+    checkouts="$(git -C "$REPO" worktree list --porcelain)"
+    if awk -v branch="refs/heads/$BRANCH" '$1 == "branch" && $2 == branch { found = 1 } END { exit !found }' <<<"$checkouts"; then
+      fail "$BRANCH is checked out in another worktree; leaving it unchanged"
+    fi
   fi
-fi
+}
+assert_checkout_owner
 
 # Busy = some run is not finished. A failed read counts as busy.
 chats_working() {
@@ -357,6 +361,11 @@ log "building"
 STAGE="build"
 RAKESH_BUILD_TAG="$base_tag" /bin/bash "$WORKTREE/scripts/rakesh/$BUILD_SCRIPT" || fail "build failed"
 
+if [[ "$MODE" == maintain ]]; then
+  printf '%s\n%s\n' "$new_head" "$base_tag" >"$STATE_DIR/publish-ready.new"
+  mv "$STATE_DIR/publish-ready.new" "$STATE_DIR/publish-ready"
+fi
+
 STAGE="staging"
 [[ ! -e "$STATE_DIR/staged" ]] || fail "unexpected staged directory; preserving it"
 PREPARING_STAGE="$(mktemp -d "$STATE_DIR/staged.preparing.XXXXXX")"
@@ -367,6 +376,7 @@ PREPARING_STAGE=''
 CREATED_STAGE=1
 
 # Fast-forward the branch only after a good build.
+assert_checkout_owner
 if [[ "$(git -C "$REPO" symbolic-ref --quiet --short HEAD || true)" == "$BRANCH" ]]; then
   git -C "$REPO" merge --ff-only --quiet "$new_head" || fail "could not fast-forward $BRANCH (local changes?)"
 else
@@ -374,10 +384,6 @@ else
 fi
 CREATED_STAGE=0
 log "$BRANCH now at $(git -C "$REPO" rev-parse --short "$BRANCH")"
-if [[ "$MODE" == maintain ]]; then
-  printf '%s\n%s\n' "$new_head" "$base_tag" >"$STATE_DIR/publish-ready.new"
-  mv "$STATE_DIR/publish-ready.new" "$STATE_DIR/publish-ready"
-fi
 STAGE="publish"
 publish
 cd "$REPO"
