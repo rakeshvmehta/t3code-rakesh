@@ -137,6 +137,11 @@ BUILD
                 self.assertEqual(result.returncode, 1, self.log())
                 self.assertTrue(self.builds.exists(), self.log())
                 self.assertIn('fetching nightly release ' + self.nightly_tag, self.log())
+                failures = [json.loads(line) for line in self.events.read_text().splitlines()
+                            if json.loads(line)[0] == 'failure']
+                self.assertTrue(failures)
+                self.assertTrue(all(event[event.index('--stage') + 1] == 'build'
+                                    for event in failures), failures)
                 self.builds.unlink()
 
     def test_failed_build_is_retried_in_the_same_day(self):
