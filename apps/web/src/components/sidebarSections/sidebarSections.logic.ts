@@ -15,6 +15,7 @@ export type SidebarSectionsState = {
   readonly sections: readonly SidebarCustomSection[];
   readonly assignments: Readonly<Record<string, string>>;
   readonly chatsCollapsed: boolean;
+  readonly threadOrder?: readonly string[];
 };
 
 export const EMPTY_SIDEBAR_SECTIONS_STATE: SidebarSectionsState = {
@@ -29,6 +30,7 @@ export const SidebarSectionsStateSchema = Schema.Struct({
   ),
   assignments: Schema.Record(Schema.String, Schema.String),
   chatsCollapsed: Schema.Boolean,
+  threadOrder: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 
 const decodeStored = Schema.decodeUnknownOption(Schema.fromJsonString(SidebarSectionsStateSchema));
@@ -69,13 +71,13 @@ export function renameSection(
 
 export function deleteSection(state: SidebarSectionsState, id: string): SidebarSectionsState {
   if (!hasSection(state, id)) return state;
-  return {
+  return retainThreadOrder({
     ...state,
     sections: state.sections.filter((section) => section.id !== id),
     assignments: Object.fromEntries(
       Object.entries(state.assignments).filter(([, sectionId]) => sectionId !== id),
     ),
-  };
+  });
 }
 
 export function moveSection(
@@ -113,7 +115,7 @@ export function assignThread(
   if (sectionId === null) {
     if (!(threadKey in state.assignments)) return state;
     const { [threadKey]: _removed, ...assignments } = state.assignments;
-    return { ...state, assignments };
+    return retainThreadOrder({ ...state, assignments });
   }
   if (!hasSection(state, sectionId) || state.assignments[threadKey] === sectionId) return state;
   return { ...state, assignments: { ...state.assignments, [threadKey]: sectionId } };
@@ -131,7 +133,60 @@ export function pruneAssignments(
   );
   return kept.length === entries.length
     ? state
-    : { ...state, assignments: Object.fromEntries(kept) };
+    : retainThreadOrder({ ...state, assignments: Object.fromEntries(kept) });
+}
+
+function retainThreadOrder(state: SidebarSectionsState): SidebarSectionsState {
+  if (state.threadOrder === undefined) return state;
+  const threadOrder = [...new Set(state.threadOrder)].filter(
+    (key) => sectionIdForThread(state, key) !== null,
+  );
+  return threadOrder.length === state.threadOrder.length ? state : { ...state, threadOrder };
+}
+
+export function rememberThreadOrder(
+  state: SidebarSectionsState,
+  activeKeys: readonly string[],
+): SidebarSectionsState {
+  const retained = retainThreadOrder(state);
+  const threadOrder = [...(retained.threadOrder ?? [])];
+  const known = new Set(threadOrder);
+  for (const key of activeKeys) {
+    if (!known.has(key) && sectionIdForThread(state, key) !== null) {
+      threadOrder.push(key);
+      known.add(key);
+    }
+  }
+  return threadOrder.length === (retained.threadOrder?.length ?? 0)
+    ? retained
+    : { ...retained, threadOrder };
+}
+
+export function placeThread(
+  state: SidebarSectionsState,
+  threadKey: string,
+  sectionId: string | null,
+  orderedKeys: readonly string[],
+): SidebarSectionsState {
+  const assigned = assignThread(state, threadKey, sectionId);
+  if (sectionId === null || !hasSection(assigned, sectionId)) return assigned;
+  const remembered = rememberThreadOrder(assigned, orderedKeys);
+  const siblings = orderedKeys.filter((key) => sectionIdForThread(remembered, key) === sectionId);
+  const index = siblings.indexOf(threadKey);
+  if (index === -1) return remembered;
+  const rest = (remembered.threadOrder ?? []).filter((key) => key !== threadKey);
+  const next = siblings[index + 1];
+  const previous = siblings[index - 1];
+  const at =
+    next !== undefined
+      ? rest.indexOf(next)
+      : previous !== undefined
+        ? rest.indexOf(previous) + 1
+        : rest.length;
+  const threadOrder = [...rest.slice(0, at), threadKey, ...rest.slice(at)];
+  return threadOrder.every((key, i) => key === remembered.threadOrder?.[i])
+    ? remembered
+    : { ...remembered, threadOrder };
 }
 
 const environmentOfThreadKey = (threadKey: string) => threadKey.slice(0, threadKey.indexOf(":"));
@@ -170,6 +225,11 @@ export function groupActiveThreadKeys(
   for (const section of state.sections) keysBySection.set(section.id, []);
   for (const key of orderedActiveKeys) {
     keysBySection.get(sectionIdForThread(state, key))!.push(key);
+  }
+  const ranks = new Map((state.threadOrder ?? []).map((key, index) => [key, index]));
+  for (const [sectionId, keys] of keysBySection) {
+    if (sectionId !== null)
+      keys.sort((left, right) => (ranks.get(left) ?? Infinity) - (ranks.get(right) ?? Infinity));
   }
   return [
     ...state.sections.map((section) => ({

@@ -8,7 +8,9 @@ import {
   deleteSection,
   groupActiveThreadKeys,
   moveSection,
+  placeThread,
   pruneAssignments,
+  rememberThreadOrder,
   renameSection,
   resolveLiveThreadKeys,
   sectionIdForThread,
@@ -21,6 +23,36 @@ const twoSections = (): SidebarSectionsState =>
   addSection(addSection(EMPTY_SIDEBAR_SECTIONS_STATE, "a", "Alpha"), "b", "Beta");
 
 describe("groupActiveThreadKeys", () => {
+  it("restores custom positions after Working while Chats follows the latest input order", () => {
+    let state = twoSections();
+    for (const key of ["first", "middle", "last"]) state = assignThread(state, key, "a");
+    state = rememberThreadOrder(state, ["first", "chat-old", "middle", "last", "chat-new"]);
+    state = rememberThreadOrder(state, ["first", "last", "chat-new", "chat-old"]);
+    expect(
+      groupActiveThreadKeys(state, ["middle", "chat-new", "first", "chat-old", "last"]).map(
+        (group) => [group.sectionId, group.threadKeys],
+      ),
+    ).toEqual([
+      ["a", ["first", "middle", "last"]],
+      ["b", []],
+      [null, ["chat-new", "chat-old"]],
+    ]);
+    const reloaded = decodeSidebarSectionsState(JSON.stringify(state));
+    expect(groupActiveThreadKeys(reloaded, ["last", "middle", "first"])[0]?.threadKeys).toEqual([
+      "first",
+      "middle",
+      "last",
+    ]);
+  });
+
+  it("captures legacy order once, appends unseen assigned threads and keeps hidden slots", () => {
+    let state = twoSections();
+    for (const key of ["first", "hidden", "last", "new"]) state = assignThread(state, key, "a");
+    state = rememberThreadOrder(state, ["first", "hidden", "last"]);
+    const next = rememberThreadOrder(state, ["new", "last", "first"]);
+    expect(next.threadOrder).toEqual(["first", "hidden", "last", "new"]);
+    expect(rememberThreadOrder(next, ["new", "last", "first"])).toBe(next);
+  });
   it("puts every key in Chats when there are no sections", () => {
     expect(groupActiveThreadKeys(EMPTY_SIDEBAR_SECTIONS_STATE, ["t1", "t2"])).toEqual([
       { sectionId: null, name: "Chats", collapsed: false, threadKeys: ["t1", "t2"] },
@@ -63,6 +95,38 @@ describe("groupActiveThreadKeys", () => {
 });
 
 describe("section mutations", () => {
+  it("reorders a custom thread without losing a sibling hidden in Working", () => {
+    let state = twoSections();
+    for (const key of ["first", "working", "last"]) state = assignThread(state, key, "a");
+    state = rememberThreadOrder(state, ["first", "working", "last"]);
+    state = placeThread(state, "last", "a", ["last", "first"]);
+    expect(groupActiveThreadKeys(state, ["working", "first", "last"])[0]?.threadKeys).toEqual([
+      "last",
+      "first",
+      "working",
+    ]);
+    expect(placeThread(state, "last", "a", ["last", "first"])).toBe(state);
+  });
+
+  it("places cross-section drops at the requested position and clears order on removal", () => {
+    let state = twoSections();
+    for (const key of ["first", "last"]) state = assignThread(state, key, "a");
+    state = assignThread(state, "moved", "b");
+    state = rememberThreadOrder(state, ["first", "last", "moved"]);
+    state = placeThread(state, "moved", "a", ["first", "moved", "last"]);
+    expect(groupActiveThreadKeys(state, ["last", "first", "moved"])[0]?.threadKeys).toEqual([
+      "first",
+      "moved",
+      "last",
+    ]);
+    const inChats = placeThread(state, "moved", null, ["moved", "first", "last"]);
+    expect(inChats.threadOrder).toEqual(["first", "last"]);
+    expect(deleteSection(state, "a").threadOrder).toEqual([]);
+    expect(pruneAssignments(state, new Set(["moved", "last"])).threadOrder).toEqual([
+      "moved",
+      "last",
+    ]);
+  });
   it("adds sections at the end with trimmed names", () => {
     const state = addSection(twoSections(), "c", "  Gamma  ");
     expect(state.sections.map((section) => [section.id, section.name])).toEqual([
