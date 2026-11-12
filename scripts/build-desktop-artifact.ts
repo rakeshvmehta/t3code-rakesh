@@ -2852,7 +2852,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       category: "public.app-category.developer-tools",
       extendInfo: {
         ...(resolveDesktopAppId() === "com.rakesh.t3code.nightly"
-          ? { CFBundleDisplayName: "T3-RN" }
+          ? { CFBundleDisplayName: "T3-R (Nightly)" }
           : {}),
         // macOS 26 offers Messages/Mail codes in every text field unless opted out.
         NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,

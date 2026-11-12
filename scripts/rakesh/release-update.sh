@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared release updater for T3-R and T3-RN. Two modes:
+# Shared release updater for T3-R stable and nightly. Two modes:
 #   maintain (a checkout with an `upstream` remote): merge the selected
 #     upstream release into the channel branch, build, push it to origin
 #     (only after a good build), install.
@@ -27,7 +27,7 @@ case "$CHANNEL" in
     ;;
   nightly)
     DEFAULT_BRANCH=rakesh/nightly
-    PRODUCT=T3-RN
+    PRODUCT='T3-R (Nightly)'
     LOG_PREFIX=t3rn-update
     STATE_NAME=t3code-rakesh-nightly
     BUILD_SCRIPT=build-nightly.sh

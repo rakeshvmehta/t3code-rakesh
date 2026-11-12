@@ -69,10 +69,10 @@ Our edits to upstream files are deliberately small:
   `t3-black-web-favicon-16x16.png`, `t3-black-web-favicon-32x32.png`: the T3-R
   icon. The desktop build copies these over the web icons, and the splash
   screen shows the apple-touch one. On conflict keep ours.
-- Nightly uses `assets/rakesh/nightly/` for its T3-RN Dock, startup, and web
+- Nightly uses `assets/rakesh/nightly/` for its T3-R Dock, startup, and web
   icons. Preserve the `rakesh-nightly` asset selection for bundle ID
-  `com.rakesh.t3code.nightly`, the channel-aware `RakeshBrandMark`, and the
-  T3-RN display branding in `DesktopEnvironment`/`DesktopAppIdentity`.
+  `com.rakesh.t3code.nightly`, the T3-R `RakeshBrandMark`, and the
+  T3-R (Nightly) display branding in `DesktopEnvironment`/`DesktopAppIdentity`.
 
 ## The contract (must still hold after the merge)
 

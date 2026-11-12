@@ -248,7 +248,7 @@ BUILD
         self.assertFalse((self.state / 'staged').exists())
         events = [json.loads(line) for line in self.events.read_text().splitlines()]
         installed = next(event for event in events if event[0] == 'installed')
-        self.assertEqual(installed[installed.index('--product') + 1], 'T3-RN')
+        self.assertEqual(installed[installed.index('--product') + 1], 'T3-R (Nightly)')
 
     def test_nightly_picks_up_custom_stable_changes_without_a_new_upstream_tag(self):
         self.successful_build()

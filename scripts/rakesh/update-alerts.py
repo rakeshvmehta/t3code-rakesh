@@ -183,7 +183,7 @@ def main():
     parser.add_argument('event', choices=['failure', 'installed', 'flush'])
     parser.add_argument('--state-dir', type=Path, required=True)
     parser.add_argument('--config', type=Path)
-    parser.add_argument('--product', choices=['T3-R', 'T3-RN'], default='T3-R')
+    parser.add_argument('--product', choices=['T3-R', 'T3-R (Nightly)', 'T3-RN'], default='T3-R')
     parser.add_argument('--installed', default='unknown')
     parser.add_argument('--target', default='unknown')
     parser.add_argument('--stage', default='update')

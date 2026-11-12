@@ -1,4 +1,4 @@
-# T3-RN
+# T3-R nightly
 
 `rakesh/nightly` carries the custom sections, notes, and branding on top of an
 upstream nightly release. Build it with:
@@ -12,11 +12,11 @@ The output is `release-rakesh-nightly/T3 Code (Rakesh Nightly).app`, bundle ID
 merged into the checkout. The stable build keeps its existing identity and
 output directory.
 
-The nightly app displays **T3-RN** in its sidebar, window/app labels, and startup
-screen. Its Dock icon and web/startup icons come from the same mark under
+The nightly app uses the **T3-R** mark in its sidebar, icons, and startup
+screen, with **T3-R (Nightly)** for its app/window labels. Its Dock icon and web/startup icons come from the same mark under
 `assets/rakesh/nightly/` (`app-icon.icon` is the editable Icon Composer source).
 The original nightly stars, clouds, and space background are preserved; only
-the lettering layer changes to T3-RN. The existing app
+the lettering layer changes to T3-R. The existing app
 filename and bundle ID stay unchanged so installation, updates, and macOS
 permissions keep their existing identity. Stable keeps the T3-R mark.
 
@@ -66,7 +66,7 @@ Channel logs remain `~/Library/Logs/t3code-rakesh/stable-update-YYYY-MM-DD.log`
 and `~/Library/Logs/t3code-rakesh/t3rn-update-YYYY-MM-DD.log`. Nightly staging,
 completion markers, and Slack incident state live separately under
 `~/Library/Application Support/t3code-rakesh-nightly`. Slack delivery uses the
-existing stable self-DM configuration, with T3-RN labels and independent
+existing stable self-DM configuration, with T3-R (Nightly) labels and independent
 failure/recovery deduplication.
 
 ## Moving the maintainer later
