@@ -11,10 +11,12 @@ class FakeSlack:
         self.messages = []
         self.error = None
 
-    def find(self, text):
+    def find(self, text, receipt_id=None):
         return next((r for r in self.messages if r['text'] == text), None)
 
-    def send(self, text):
+    def send(self, text, before_send=None, accepted=None):
+        if before_send:
+            before_send()
         if self.error:
             raise self.error
         receipt = {'id': f'Rm{len(self.messages) + 1}', 'text': text}
@@ -100,8 +102,8 @@ class UpdateAlertsTest(unittest.TestCase):
     def test_ambiguous_send_is_reconciled_without_duplicate(self):
         real_send = self.slack.send
 
-        def accepted_then_timeout(text):
-            real_send(text)
+        def accepted_then_timeout(text, **callbacks):
+            real_send(text, **callbacks)
             raise alerts.Uncertain('timeout')
 
         self.slack.send = accepted_then_timeout
@@ -141,6 +143,38 @@ class UpdateAlertsTest(unittest.TestCase):
         self.run_event('installed')
         self.assertEqual(len(self.slack.messages), 1)
         self.assertIn('recovered', self.slack.messages[0]['text'])
+
+    def test_preflight_timeout_stays_retryable_and_records_safe_reason(self):
+        slack = alerts.ComposioSlack({'channel_id': 'D_SELF'})
+        def timeout():
+            raise alerts.Uncertain('Composio auth.test timed out after 20 seconds')
+        slack.verify_identity = timeout
+        with self.assertRaises(alerts.Uncertain):
+            alerts.handle_event(self.path, slack, 'failure', installed='0.1.3',
+                                target='v0.1.7', stage='discovery', log='/local/log.txt')
+        item = json.loads(self.path.read_text())['outbox'][0]
+        self.assertEqual(item['status'], 'pending')
+        self.assertIn('auth.test', item['last_error'])
+        slack.verify_identity = lambda: None
+        slack.call = lambda *a, **kw: {'ok': True, 'channel': 'D_SELF', 'ts': '123.4'}
+        text = item['text']
+        slack.execute = lambda *a, **kw: {'ok': True, 'messages': [{'ts': '123.4', 'text': text}]}
+        alerts.handle_event(self.path, slack, 'flush')
+        self.assertEqual(json.loads(self.path.read_text())['outbox'][0]['status'], 'sent')
+
+    def test_accepted_receipt_is_saved_even_if_history_readback_times_out(self):
+        slack = alerts.ComposioSlack({'channel_id': 'D_SELF'})
+        slack.verify_identity = lambda: None
+        slack.call = lambda *a, **kw: {'ok': True, 'channel': 'D_SELF', 'ts': '123.4'}
+        def timeout(*a, **kw):
+            raise alerts.Uncertain('Composio history timed out after 20 seconds')
+        slack.execute = timeout
+        with self.assertRaises(alerts.Uncertain):
+            alerts.handle_event(self.path, slack, 'failure', installed='0.1.3',
+                                target='v0.1.7', stage='discovery', log='/local/log.txt')
+        item = json.loads(self.path.read_text())['outbox'][0]
+        self.assertEqual(item['status'], 'uncertain')
+        self.assertEqual(item.get('receipt_id'), '123.4')
 
     def test_delivery_reconciles_from_saved_dm_history(self):
         slack = alerts.ComposioSlack({'user_id': 'U_SELF', 'team_id': 'T_ZARNA',

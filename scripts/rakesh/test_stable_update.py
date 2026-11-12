@@ -121,6 +121,24 @@ BUILD
         self.git('-C', str(self.repo), 'add', '.')
         self.git('-C', str(self.repo), 'commit', '-qm', 'test build boundary')
 
+    def test_nightly_discards_partial_or_malformed_gh_response_before_fallback(self):
+        self.nightly()
+        del self.env['RAKESH_UPDATE_TAG']
+        payload = json.dumps([{'tag_name': self.nightly_tag, 'prerelease': True,
+                               'draft': False, 'published_at': '2026-11-11T03:00:00Z'}])
+        env_file = self.repo / 'scripts/rakesh/env.sh'
+        with env_file.open('a') as stream:
+            stream.write(f"\ncurl() {{ printf '%s' '{payload}'; }}\n")
+        for code in (1, 0):
+            with self.subTest(gh_exit=code):
+                with env_file.open('a') as stream:
+                    stream.write(f"gh() {{ printf '%s' '[partial'; return {code}; }}\n")
+                result = self.run_updater()
+                self.assertEqual(result.returncode, 1, self.log())
+                self.assertTrue(self.builds.exists(), self.log())
+                self.assertIn('fetching nightly release ' + self.nightly_tag, self.log())
+                self.builds.unlink()
+
     def test_failed_build_is_retried_in_the_same_day(self):
         self.assertEqual(self.run_updater().returncode, 1, self.log())
         self.assertEqual(self.run_updater().returncode, 1, self.log())

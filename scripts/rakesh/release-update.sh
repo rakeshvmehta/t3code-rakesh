@@ -265,9 +265,17 @@ else
 tag="${RAKESH_UPDATE_TAG:-${RAKESH_NIGHTLY_TAG:-}}"
 if [[ -z "$tag" ]]; then
   if [[ "$CHANNEL" == nightly ]]; then
-    tag="$( (gh api 'repos/pingdotgg/t3code/releases?per_page=100' 2>/dev/null ||
-      curl -fsSL 'https://api.github.com/repos/pingdotgg/t3code/releases?per_page=100') |
-      python3 "$REPO/scripts/rakesh/select-release.py" nightly)"
+    STAGE="release discovery"
+    if releases="$(gh api 'repos/pingdotgg/t3code/releases?per_page=100' 2>/dev/null)" &&
+       tag="$(printf '%s' "$releases" | python3 "$REPO/scripts/rakesh/select-release.py" nightly)"; then
+      :
+    else
+      log "GitHub CLI release lookup failed; retrying with a fresh HTTPS response"
+      tag="$(curl -fsSL --connect-timeout 15 --max-time 120 \
+        'https://api.github.com/repos/pingdotgg/t3code/releases?per_page=100' |
+        python3 "$REPO/scripts/rakesh/select-release.py" nightly)"
+    fi
+    unset releases
   else
     tag="$(gh api repos/pingdotgg/t3code/releases/latest -q .tag_name 2>/dev/null ||
       curl -fsSL https://api.github.com/repos/pingdotgg/t3code/releases/latest |
