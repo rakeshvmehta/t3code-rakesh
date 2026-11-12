@@ -13,6 +13,13 @@ export const EMPTY_THREAD_NOTES: ThreadNotes = {};
 
 export const ThreadNotesSchema = Schema.Record(Schema.String, Schema.String);
 
+export function threadNotePreview(note: string | undefined): string | null {
+  const text = note?.replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  const characters = Array.from(text);
+  return characters.length > 100 ? `${characters.slice(0, 100).join("").trimEnd()}…` : text;
+}
+
 // A blank note clears it; anything past the cap is cut.
 export function setThreadNote(notes: ThreadNotes, threadKey: string, text: string): ThreadNotes {
   const note = text.trim().slice(0, THREAD_NOTE_MAX_LENGTH);

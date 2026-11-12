@@ -1,7 +1,11 @@
 import { useAtomMount } from "@effect/atom-react";
 import { asLaunchingThread } from "@t3tools/client-runtime/state/thread-inbox";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
-import { ThreadNoteHoverLine } from "../rakesh/ThreadNotes";
+import {
+  ThreadNoteHoverLine,
+  ThreadNotePreview,
+  useThreadNotePreview,
+} from "../rakesh/ThreadNotes";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { requestCustomSnooze } from "../CustomSnoozeDialog";
@@ -669,6 +673,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   } = props;
   const threadRef = scopeThreadRef(thread.environmentId, thread.id);
   const threadKey = scopedThreadKey(threadRef);
+  const notePreview = useThreadNotePreview(threadKey);
   const canOperateThread = useEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope);
   const { leaseLiveStatus, rowRef: leaseRowRef } = useSidebarRowSubscriptionLease(props.isActive);
   const { revealRef } = props;
@@ -1220,8 +1225,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   ) : null;
 
   if (variant !== "card") {
-    const multiline = variant === "folder-multiline";
-    const inFolder = variant === "folder" || multiline;
+    const multiline = variant === "folder-multiline" || notePreview !== null;
+    const inFolder = variant === "folder" || variant === "folder-multiline";
     return (
       <li
         data-thread-item={threadKey}
@@ -1229,7 +1234,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         {...(fileDropHandlers ?? {})}
         className={cn(
           "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(9)]",
-          metaLine !== null && multiline && "[contain-intrinsic-size:auto_--spacing(13.5)]",
+          (metaLine !== null || notePreview !== null) &&
+            multiline &&
+            "[contain-intrinsic-size:auto_--spacing(13.5)]",
           sortable?.isDragging && "relative z-20",
         )}
       >
@@ -1281,7 +1288,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               {title}
               {multiline ? titleLineIcons : null}
               {pinIndicator}
-              {multiline ? null : terminalStatusIcon}
+              {variant === "folder-multiline" ? null : terminalStatusIcon}
               {isRegeneratingTitle ? (
                 <span role="status" className="sr-only">
                   Regenerating title
@@ -1410,7 +1417,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               )}
               {props.sweepAction !== null ? dragDestination : null}
             </div>
-            {multiline ? metaLine : null}
+            <ThreadNotePreview preview={notePreview} />
+            {variant === "folder-multiline" ? metaLine : null}
           </TooltipTrigger>
           {detailsTooltip}
         </Tooltip>
@@ -1424,8 +1432,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       {...sortableRootProps}
       {...(fileDropHandlers ?? {})}
       className={cn(
-        "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_78px]",
-        metaLineEmpty && "[contain-intrinsic-size:auto_58px]",
+        "list-none py-0.5 [content-visibility:auto]",
+        notePreview !== null
+          ? "[contain-intrinsic-size:auto_130px]"
+          : metaLineEmpty
+            ? "[contain-intrinsic-size:auto_58px]"
+            : "[contain-intrinsic-size:auto_78px]",
         sortable?.isDragging && "relative z-20",
       )}
     >
@@ -1453,8 +1465,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           {accessibleTitle}
           <div
             className={cn(
-              "relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
-              metaLineEmpty && "h-auto",
+              "relative z-10 px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
+              !metaLineEmpty && "min-h-[4.875rem]",
             )}
           >
             <div className="flex h-5 min-w-0 items-center gap-1.5">
@@ -1611,6 +1623,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               ) : null}
               {titleLineIcons}
             </div>
+            <ThreadNotePreview preview={notePreview} />
             {metaLine}
           </div>
         </TooltipTrigger>
