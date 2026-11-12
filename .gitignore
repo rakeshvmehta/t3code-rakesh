@@ -16,6 +16,7 @@ build/
 release/
 release-mock/
 release-rakesh/
+release-rakesh-nightly/
 .t3
 .idea/
 apps/web/.playwright

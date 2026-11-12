@@ -9,9 +9,9 @@ export PATH="$RAKESH_REPO_ROOT/node_modules/.bin:/opt/homebrew/opt/node@24/bin:$
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 export T3CODE_DESKTOP_SIGNED=false
 
-RAKESH_RELEASE_DIR="$RAKESH_REPO_ROOT/release-rakesh"
-RAKESH_APP_NAME="T3 Code (Rakesh)"
-RAKESH_BUNDLE_ID="com.rakesh.t3code"
+RAKESH_RELEASE_DIR="${RAKESH_RELEASE_DIR:-$RAKESH_REPO_ROOT/release-rakesh}"
+RAKESH_APP_NAME="${RAKESH_APP_NAME:-T3 Code (Rakesh)}"
+RAKESH_BUNDLE_ID="${RAKESH_BUNDLE_ID:-com.rakesh.t3code}"
 RAKESH_INSTALL_PATH="/Applications/$RAKESH_APP_NAME.app"
 RAKESH_LOG_DIR="$HOME/Library/Logs/t3code-rakesh"
 # Signing prefers a free "Apple Development" certificate (Xcode > Settings >
