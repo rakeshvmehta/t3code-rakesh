@@ -67,12 +67,12 @@ class UpdateAlertsTest(unittest.TestCase):
         nightly_path = Path(self.temp.name) / 'nightly.json'
         details = {'installed': '0.1.8-nightly.20261111.123',
                    'target': 'v0.1.8-nightly.20261111.124', 'stage': 'build',
-                   'log': '/local/nightly.log', 'product': 'T3-RN'}
+                   'log': '/local/nightly.log', 'product': 'T3-R (Nightly)'}
         alerts.handle_event(nightly_path, self.slack, 'failure', **details)
         alerts.handle_event(nightly_path, self.slack, 'installed', **details)
         self.assertEqual(len(self.slack.messages), 3)
-        self.assertTrue(self.slack.messages[1]['text'].startswith('T3-RN update failed'))
-        self.assertTrue(self.slack.messages[2]['text'].startswith('T3-RN update recovered'))
+        self.assertTrue(self.slack.messages[1]['text'].startswith('T3-R (Nightly) update failed'))
+        self.assertTrue(self.slack.messages[2]['text'].startswith('T3-R (Nightly) update recovered'))
         self.assertIsNotNone(json.loads(self.path.read_text())['incident'])
         self.assertIsNone(json.loads(nightly_path.read_text())['incident'])
 
@@ -85,7 +85,7 @@ class UpdateAlertsTest(unittest.TestCase):
         nightly = Path(self.temp.name) / 'nightly'
         result = subprocess.run(['python3', str(Path(__file__).with_name('update-alerts.py')),
                                  'flush', '--state-dir', str(nightly), '--config', str(shared),
-                                 '--product', 'T3-RN'], capture_output=True, text=True)
+                                 '--product', 'T3-R (Nightly)'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((nightly / 'slack-alert-state.json').exists())
         self.assertFalse((shared.parent / 'slack-alert-state.json').exists())

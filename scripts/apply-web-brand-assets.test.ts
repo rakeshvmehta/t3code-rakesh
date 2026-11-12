@@ -29,7 +29,7 @@ it.layer(NodeServices.layer)("apply-web-brand-assets", (it) => {
       yield* applyWebBrandAssets("rakesh-nightly", target);
       assert.equal(
         yield* fs.readFileString(index),
-        '<title>T3-RN</title><div aria-label="T3-RN splash screen"><img alt="T3-RN" /></div>',
+        '<title>T3-R (Nightly)</title><div aria-label="T3-R splash screen"><img alt="T3-R" /></div>',
       );
       const repo = yield* path.fromFileUrl(new URL("..", import.meta.url));
       assert.deepEqual(

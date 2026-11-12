@@ -41,9 +41,9 @@ export const applyWebBrandAssets = Effect.fn("applyWebBrandAssets")(function* (
     yield* fs.writeFileString(
       indexPath,
       html
-        .replace(/<title>[^<]*<\/title>/, "<title>T3-RN</title>")
-        .replace('aria-label="T3 Code splash screen"', 'aria-label="T3-RN splash screen"')
-        .replace('alt="T3 Code"', 'alt="T3-RN"'),
+        .replace(/<title>[^<]*<\/title>/, "<title>T3-R (Nightly)</title>")
+        .replace('aria-label="T3 Code splash screen"', 'aria-label="T3-R splash screen"')
+        .replace('alt="T3 Code"', 'alt="T3-R"'),
     );
   }
 });
