@@ -5,6 +5,12 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 cd "$RAKESH_REPO_ROOT"
 
+build_tag="${RAKESH_BUILD_TAG:-$(rakesh_base_tag)}"
+git merge-base --is-ancestor "$build_tag" HEAD || {
+  echo "build.sh: $build_tag is not included in this checkout" >&2
+  exit 1
+}
+
 node -v | grep -q '^v24\.' || {
   echo "build.sh: Node 24 not found at /opt/homebrew/opt/node@24" >&2
   exit 1
@@ -28,7 +34,7 @@ pnpm exec vp test run \
   pnpm exec vp test run --project browser src/components/Sidebar)
 (cd scripts && pnpm exec vp test run --config ../vite.config.ts --dir . rakesh/identity.test.ts)
 
-version="$(rakesh_base_tag)"
+version="$build_tag"
 version="${version#v}"
 
 rm -rf "$RAKESH_RELEASE_DIR"
