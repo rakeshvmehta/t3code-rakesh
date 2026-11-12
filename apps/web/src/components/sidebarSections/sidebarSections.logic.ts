@@ -172,6 +172,16 @@ export function placeThread(
   if (sectionId === null || !hasSection(assigned, sectionId)) return assigned;
   const remembered = rememberThreadOrder(assigned, orderedKeys);
   const siblings = orderedKeys.filter((key) => sectionIdForThread(remembered, key) === sectionId);
+  if (sectionIdForThread(state, threadKey) === sectionId) {
+    const visible = new Set(siblings);
+    const previousOrder = (remembered.threadOrder ?? []).filter((key) => visible.has(key));
+    if (
+      previousOrder.length === siblings.length &&
+      previousOrder.every((key, i) => key === siblings[i])
+    ) {
+      return remembered;
+    }
+  }
   const index = siblings.indexOf(threadKey);
   if (index === -1) return remembered;
   const rest = (remembered.threadOrder ?? []).filter((key) => key !== threadKey);

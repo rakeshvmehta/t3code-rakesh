@@ -108,6 +108,18 @@ describe("section mutations", () => {
     expect(placeThread(state, "last", "a", ["last", "first"])).toBe(state);
   });
 
+  it("leaves hidden slots unchanged when a drop does not change the visible sibling order", () => {
+    let state = twoSections();
+    for (const key of ["first", "working", "last"]) state = assignThread(state, key, "a");
+    state = rememberThreadOrder(state, ["first", "working", "last"]);
+    expect(placeThread(state, "last", "a", ["first", "last"])).toBe(state);
+    expect(groupActiveThreadKeys(state, ["last", "working", "first"])[0]?.threadKeys).toEqual([
+      "first",
+      "working",
+      "last",
+    ]);
+  });
+
   it("places cross-section drops at the requested position and clears order on removal", () => {
     let state = twoSections();
     for (const key of ["first", "last"]) state = assignThread(state, key, "a");
