@@ -15,7 +15,7 @@ case "$channel" in
   both)
     label=com.rakesh.t3code.release-update
     retired_labels=(com.rakesh.t3code.stable-update com.rakesh.t3code.t3rn-update com.rakesh.t3code.nightly)
-    maintainer_hour=6
+    maintainer_hour=4
     ;;
   *) echo 'Expected stable, nightly or both' >&2; exit 2;;
 esac

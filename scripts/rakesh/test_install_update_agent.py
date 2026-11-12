@@ -142,8 +142,8 @@ launchctl() {{
         self.assertTrue(data['ProgramArguments'][-1].endswith('/update-all.sh'))
         self.assertEqual(data['EnvironmentVariables']['RAKESH_UPDATE_MODE'], 'maintain')
         self.assertEqual(data['StartCalendarInterval'], [
-            {'Hour': 6, 'Minute': 0}, {'Hour': 6, 'Minute': 30},
-            {'Hour': 7, 'Minute': 0}, {'Hour': 7, 'Minute': 30}])
+            {'Hour': 4, 'Minute': 0}, {'Hour': 4, 'Minute': 30},
+            {'Hour': 5, 'Minute': 0}, {'Hour': 5, 'Minute': 30}])
 
     def test_combined_follower_retains_the_role_and_one_hour_publication_offset(self):
         result = self.install('both', 'follow')
@@ -151,8 +151,8 @@ launchctl() {{
         data = plistlib.loads((self.agents / 'com.rakesh.t3code.release-update.plist').read_bytes())
         self.assertEqual(data['EnvironmentVariables']['RAKESH_UPDATE_MODE'], 'follow')
         self.assertEqual(data['StartCalendarInterval'], [
-            {'Hour': 7, 'Minute': 0}, {'Hour': 7, 'Minute': 30},
-            {'Hour': 8, 'Minute': 0}, {'Hour': 8, 'Minute': 30}])
+            {'Hour': 5, 'Minute': 0}, {'Hour': 5, 'Minute': 30},
+            {'Hour': 6, 'Minute': 0}, {'Hour': 6, 'Minute': 30}])
 
     def test_failed_combined_registration_restores_both_previous_jobs(self):
         originals = self.existing_channels()
@@ -203,7 +203,7 @@ launchctl() {{
         data = plistlib.loads((self.agents / 'com.rakesh.t3code.release-update.plist').read_bytes())
         self.assertTrue(data['ProgramArguments'][-1].endswith('/update-all.sh'))
         self.assertEqual(data['EnvironmentVariables']['RAKESH_UPDATE_MODE'], 'follow')
-        self.assertEqual(data['StartCalendarInterval'][0], {'Hour': 7, 'Minute': 0})
+        self.assertEqual(data['StartCalendarInterval'][0], {'Hour': 5, 'Minute': 0})
 
 
 class UpdateWindowTest(unittest.TestCase):
