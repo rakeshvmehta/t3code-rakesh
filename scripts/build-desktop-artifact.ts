@@ -2731,10 +2731,18 @@ export function isDesktopPreviewVersion(version: string): boolean {
 }
 
 export function resolveDesktopWebAssetBrand(version: string): WebAssetBrand {
+  if (resolveDesktopAppId() === "com.rakesh.t3code.nightly") return "rakesh-nightly";
   return resolveWebAssetBrandForChannel(resolveDesktopUpdateChannel(version));
 }
 
 export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIconAssets {
+  if (resolveDesktopAppId() === "com.rakesh.t3code.nightly") {
+    return {
+      macIconPng: "assets/rakesh/nightly/icon-1024.png",
+      linuxIconPng: "assets/rakesh/nightly/icon-1024.png",
+      windowsIconIco: "assets/rakesh/nightly/favicon.ico",
+    };
+  }
   if (resolveDesktopUpdateChannel(version) === "nightly") {
     return {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
@@ -2843,6 +2851,9 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       icon: "icon.icns",
       category: "public.app-category.developer-tools",
       extendInfo: {
+        ...(resolveDesktopAppId() === "com.rakesh.t3code.nightly"
+          ? { CFBundleDisplayName: "T3-RN" }
+          : {}),
         // macOS 26 offers Messages/Mail codes in every text field unless opted out.
         NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
         NSLocalNetworkUsageDescription:

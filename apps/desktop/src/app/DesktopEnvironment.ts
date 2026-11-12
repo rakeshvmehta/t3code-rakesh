@@ -103,10 +103,11 @@ export function resolveDesktopAppBranding(input: {
   readonly appVersion: string;
 }): DesktopAppBranding {
   const stageLabel = resolveDesktopAppStageLabel(input);
+  const baseName = stageLabel === "Nightly" ? "T3-RN" : APP_BASE_NAME;
   return {
-    baseName: APP_BASE_NAME,
+    baseName,
     stageLabel,
-    displayName: `${APP_BASE_NAME} (${stageLabel})`,
+    displayName: stageLabel === "Nightly" ? baseName : `${baseName} (${stageLabel})`,
   };
 }
 

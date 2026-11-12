@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#626262"/>
+      <stop offset="0.055" stop-color="#161616"/>
+      <stop offset="0.25" stop-color="#030303"/>
+      <stop offset="0.85" stop-color="#030303"/>
+      <stop offset="1" stop-color="#3a3a3a"/>
+    </linearGradient>
+    <linearGradient id="lettering" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fafafa"/>
+      <stop offset="1" stop-color="#a3a3a3"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="200" fill="url(#rim)"/>
+  <rect x="106" y="108" width="812" height="808" rx="195" fill="#000"/>
+  <text x="512" y="595" text-anchor="middle" font-family="Arial Black, Helvetica, Arial, sans-serif" font-weight="900" font-size="232" letter-spacing="-8" textLength="746" lengthAdjust="spacingAndGlyphs" fill="url(#lettering)">T3-RN</text>
+</svg>

@@ -56,13 +56,16 @@ if [[ -e "$app/Contents/Resources/app-update.yml" ]]; then
   exit 1
 fi
 
-# Our own Dock icon ("T3-R"), so this app is distinguishable from the official one.
+icon_source="$RAKESH_REPO_ROOT/assets/rakesh/t3r-macos-1024.png"
+if [[ "$RAKESH_BUNDLE_ID" == com.rakesh.t3code.nightly ]]; then
+  icon_source="$RAKESH_REPO_ROOT/assets/rakesh/nightly/icon-1024.png"
+fi
 iconset="$(mktemp -d)/icon.iconset"
 mkdir -p "$iconset"
 for size in 16 32 128 256 512; do
-  sips -z "$size" "$size" "$RAKESH_REPO_ROOT/assets/rakesh/t3r-macos-1024.png" \
+  sips -z "$size" "$size" "$icon_source" \
     --out "$iconset/icon_${size}x${size}.png" >/dev/null
-  sips -z "$((size * 2))" "$((size * 2))" "$RAKESH_REPO_ROOT/assets/rakesh/t3r-macos-1024.png" \
+  sips -z "$((size * 2))" "$((size * 2))" "$icon_source" \
     --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
 done
 iconutil -c icns "$iconset" -o "$app/Contents/Resources/icon.icns"
