@@ -265,13 +265,13 @@ ditto() {{ cp -R "$1" "$2"; }}
         self.assertIn('installed', self.events.read_text().splitlines())
         self.assertFalse(staged.exists())
 
-    def test_same_day_skip_flushes_alerts_without_installing(self):
+    def test_same_day_check_flushes_alerts_and_reports_a_new_failure(self):
         import datetime
         (self.state / 'last-success').write_text(datetime.date.today().isoformat())
         result = self.run_updater()
-        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1)
         self.assertTrue(self.events.exists(), 'Missing pending-alert flush')
-        self.assertEqual(self.events.read_text().splitlines(), ['flush'])
+        self.assertEqual(self.events.read_text().splitlines(), ['flush', 'failure'])
 
     def test_failed_install_alerts_and_keeps_the_staged_build(self):
         staged = self.state / 'staged'

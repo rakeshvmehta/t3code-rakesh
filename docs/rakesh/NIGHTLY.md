@@ -26,42 +26,50 @@ only one T3 app at a time. Neither app uses the upstream update feed.
 
 ## Scheduled updates
 
-Enable T3-RN updates from the durable checkout that holds both local branches:
+Enable both channels from the durable checkout that holds both local branches:
 
 ```sh
-bash scripts/rakesh/install-launch-agent.sh nightly
+bash scripts/rakesh/install-launch-agent.sh both
 ```
 
-The maintainer checks at02:00,02:30,03:00,and03:30. It carries forward custom
-changes from `rakesh/main`, merges the latest published nightly, validates and
-builds the app, then publishes `rakesh/nightly` and its upstream tag. Publication
+The maintainer checks at 06:00, 06:30, 07:00 and 07:30 in the Mac's local time.
+One job runs stable first, then nightly, so scheduled builds never overlap.
+Nightly still runs if stable fails. Every slot looks for newly published releases;
+unchanged releases do not rebuild. A staged installation is retried first.
+
+Nightly carries forward custom changes from `rakesh/main`, merges the latest
+published nightly, validates and builds the app, then publishes `rakesh/nightly`
+and its upstream tag. Publication
 retries use a receipt for the exact validated commit; unbuilt local changes
 are never pushed by a no-update check. A partial staging copy is not installed.
 
-Followers check at03:00,03:30,04:00,and04:30, fetch the published branch and
+Followers check at 07:00, 07:30, 08:00 and 08:30, fetch the published branches and
 build/sign locally. A follower keeps checking its later slots if the maintainer
 has not published yet. An open target app is restarted only when no chat is
 active. Updating the closed app does not launch it beside another T3 app.
 
-The job is `com.rakesh.t3code.t3rn-update`; logs are
-`~/Library/Logs/t3code-rakesh/t3rn-update-YYYY-MM-DD.log`. Nightly staging,
+The shared job is `com.rakesh.t3code.release-update`. Installing it replaces the
+separate stable/nightly jobs and the legacy stable job. It refuses to interrupt
+a running updater and restores previous jobs if registration fails. Standalone
+channel installers cannot add a duplicate schedule while the shared job exists.
+The legacy `nightly-update.sh` entrypoint still means stable.
+
+Channel logs remain `~/Library/Logs/t3code-rakesh/stable-update-YYYY-MM-DD.log`
+and `~/Library/Logs/t3code-rakesh/t3rn-update-YYYY-MM-DD.log`. Nightly staging,
 completion markers, and Slack incident state live separately under
 `~/Library/Application Support/t3code-rakesh-nightly`. Slack delivery uses the
 existing stable self-DM configuration, with T3-RN labels and independent
-failure/recovery deduplication. Existing stable jobs and the legacy
-`nightly-update.sh` stable alias retain their behavior.
+failure/recovery deduplication.
 
 ## Moving the maintainer later
 
 The installer accepts an explicit role, even when an upstream remote exists:
 
 ```sh
-bash scripts/rakesh/install-launch-agent.sh stable maintain
-bash scripts/rakesh/install-launch-agent.sh nightly maintain
+bash scripts/rakesh/install-launch-agent.sh both maintain
 
 # On follower Macs after the new maintainer is verified:
-bash scripts/rakesh/install-launch-agent.sh stable follow
-bash scripts/rakesh/install-launch-agent.sh nightly follow
+bash scripts/rakesh/install-launch-agent.sh both follow
 ```
 
 Keep one publisher per branch. The maintainer needs local `rakesh/main` and

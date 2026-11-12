@@ -1,5 +1,6 @@
 from pathlib import Path
 import plistlib
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -37,6 +38,10 @@ launchctl() {{
   fi
   if [[ "$1" == bootstrap && -f '{self.root / 'fail'}' ]]; then
     rm '{self.root / 'fail'}'
+    return 1
+  fi
+  if [[ "$1" == bootout && -f '{self.root / 'fail-bootout'}' ]]; then
+    rm '{self.root / 'fail-bootout'}'
     return 1
   fi
   return 0
@@ -118,6 +123,106 @@ launchctl() {{
         self.assertNotEqual(result.returncode, 0)
         self.assertTrue(self.legacy.exists())
         self.assertFalse(self.calls.exists())
+
+    def existing_channels(self):
+        originals = {}
+        for label in ('com.rakesh.t3code.stable-update', 'com.rakesh.t3code.t3rn-update'):
+            path = self.agents / (label + '.plist')
+            originals[label] = plistlib.dumps({'Label': label, 'existing': True})
+            path.write_bytes(originals[label])
+        return originals
+
+    def test_combined_job_replaces_both_old_jobs_and_runs_in_the_morning(self):
+        self.existing_channels()
+        result = self.install('both', 'maintain')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        paths = list(self.agents.glob('*.plist'))
+        self.assertEqual([path.name for path in paths], ['com.rakesh.t3code.release-update.plist'])
+        data = plistlib.loads(paths[0].read_bytes())
+        self.assertTrue(data['ProgramArguments'][-1].endswith('/update-all.sh'))
+        self.assertEqual(data['EnvironmentVariables']['RAKESH_UPDATE_MODE'], 'maintain')
+        self.assertEqual(data['StartCalendarInterval'], [
+            {'Hour': 6, 'Minute': 0}, {'Hour': 6, 'Minute': 30},
+            {'Hour': 7, 'Minute': 0}, {'Hour': 7, 'Minute': 30}])
+
+    def test_combined_follower_retains_the_role_and_one_hour_publication_offset(self):
+        result = self.install('both', 'follow')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = plistlib.loads((self.agents / 'com.rakesh.t3code.release-update.plist').read_bytes())
+        self.assertEqual(data['EnvironmentVariables']['RAKESH_UPDATE_MODE'], 'follow')
+        self.assertEqual(data['StartCalendarInterval'], [
+            {'Hour': 7, 'Minute': 0}, {'Hour': 7, 'Minute': 30},
+            {'Hour': 8, 'Minute': 0}, {'Hour': 8, 'Minute': 30}])
+
+    def test_failed_combined_registration_restores_both_previous_jobs(self):
+        originals = self.existing_channels()
+        (self.root / 'fail').touch()
+        result = self.install('both', 'maintain')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('registration failed', result.stderr)
+        self.assertFalse((self.agents / 'com.rakesh.t3code.release-update.plist').exists())
+        for label, original in originals.items():
+            self.assertEqual((self.agents / (label + '.plist')).read_bytes(), original)
+            self.assertTrue(any(line.startswith('bootstrap ') and line.endswith(label + '.plist')
+                                for line in self.calls.read_text().splitlines()))
+
+    def test_running_update_prevents_combined_migration(self):
+        originals = self.existing_channels()
+        (self.root / 'running').touch()
+        result = self.install('both')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('updater is running', result.stderr)
+        for label, original in originals.items():
+            self.assertEqual((self.agents / (label + '.plist')).read_bytes(), original)
+        self.assertFalse(any(line.startswith(('bootout ', 'bootstrap '))
+                             for line in self.calls.read_text().splitlines()))
+
+    def test_failed_job_removal_does_not_install_a_second_scheduler(self):
+        originals = self.existing_channels()
+        (self.root / 'fail-bootout').touch()
+        result = self.install('both')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('could not unload', result.stderr)
+        self.assertFalse((self.agents / 'com.rakesh.t3code.release-update.plist').exists())
+        for label, original in originals.items():
+            self.assertEqual((self.agents / (label + '.plist')).read_bytes(), original)
+
+    def test_individual_install_cannot_duplicate_an_existing_combined_job(self):
+        combined = self.agents / 'com.rakesh.t3code.release-update.plist'
+        combined.write_bytes(plistlib.dumps({'Label': 'com.rakesh.t3code.release-update'}))
+        result = self.install('nightly')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('both', result.stderr)
+        self.assertFalse(self.calls.exists())
+
+    def test_default_reinstall_preserves_a_combined_follower_job(self):
+        result = self.install('both', 'follow')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = plistlib.loads((self.agents / 'com.rakesh.t3code.release-update.plist').read_bytes())
+        self.assertTrue(data['ProgramArguments'][-1].endswith('/update-all.sh'))
+        self.assertEqual(data['EnvironmentVariables']['RAKESH_UPDATE_MODE'], 'follow')
+        self.assertEqual(data['StartCalendarInterval'][0], {'Hour': 7, 'Minute': 0})
+
+
+class UpdateWindowTest(unittest.TestCase):
+    def test_channels_run_sequentially_even_if_stable_fails(self):
+        for stable_status, nightly_status, expected_status in ((0, 0, 0), (1, 0, 1), (0, 1, 1)):
+            with self.subTest(stable_status=stable_status, nightly_status=nightly_status), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                source = Path(__file__).with_name('update-all.sh')
+                self.assertTrue(source.exists(), 'Combined update runner is missing')
+                shutil.copyfile(source, root / 'update-all.sh')
+                (root / 'env.sh').write_text('')
+                events = root / 'events'
+                (root / 'stable-update.sh').write_text(
+                    f'echo stable-start >> "{events}"\necho stable-end >> "{events}"\nexit {stable_status}\n')
+                (root / 't3rn-update.sh').write_text(f'echo nightly >> "{events}"\nexit {nightly_status}\n')
+                result = subprocess.run(['bash', str(root / 'update-all.sh')],
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, expected_status, result.stderr)
+                self.assertEqual(events.read_text().splitlines(), ['stable-start', 'stable-end', 'nightly'])
 
 
 if __name__ == '__main__':

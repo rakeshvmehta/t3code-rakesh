@@ -6,11 +6,11 @@
 #   follow (a plain clone of the fork): fast-forward to the published branch,
 #     build, install. No merge, no agent.
 # launchd runs it four times, 30 minutes apart; failed checks/builds retry.
-# After a successful check, later runs only retry a staged installation.
+# Each slot discovers newly published releases without rebuilding unchanged apps.
 #
 # Overrides (for testing): RAKESH_UPDATE_BRANCH, RAKESH_UPDATE_TAG,
 # RAKESH_UPDATE_INSTALL_TARGET, RAKESH_UPDATE_STATE_DIR,
-# RAKESH_UPDATE_FORCE=1 (ignore today's marker), RAKESH_UPDATE_MODE.
+# RAKESH_UPDATE_MODE.
 set -Eeuo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 REPO="$RAKESH_REPO_ROOT"
@@ -236,11 +236,6 @@ if [[ -d "$STAGED_APP" ]]; then
   exit 0
 fi
 
-if [[ "$MODE" == maintain && "${RAKESH_UPDATE_FORCE:-${RAKESH_NIGHTLY_FORCE:-0}}" != 1 && "$(cat "$SUCCESS_FILE" 2>/dev/null || true)" == "$TODAY" ]]; then
-  log "already checked successfully today; nothing staged"
-  trap - ERR
-  exit 0
-fi
 # A run missed while the Mac slept fires right on wake, often before Wi-Fi
 # is back; give the network ten minutes before fetching.
 STAGE="fetch"
