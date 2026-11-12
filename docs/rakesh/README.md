@@ -27,8 +27,8 @@ Applications. On first launch macOS asks for your password to let it use the
 ## Scheduled updates
 
 For both stable and nightly, use `scripts/rakesh/install-launch-agent.sh both`.
-The maintainer runs stable then nightly at 06:00, with further checks every
-30 minutes through 07:30. Followers use 07:00 through 08:30. Every slot looks
+The maintainer runs stable then nightly at 04:00, with further checks every
+30 minutes through 05:30. Followers use 05:00 through 06:30. Every slot looks
 for new releases and skips rebuilding unchanged apps. This replaces separate
 channel jobs; see [T3-RN setup](NIGHTLY.md) for branch prerequisites and VM roles.
 Re-running setup preserves an existing combined job and its role.

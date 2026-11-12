@@ -32,7 +32,7 @@ Enable both channels from the durable checkout that holds both local branches:
 bash scripts/rakesh/install-launch-agent.sh both
 ```
 
-The maintainer checks at 06:00, 06:30, 07:00 and 07:30 in the Mac's local time.
+The maintainer checks at 04:00, 04:30, 05:00 and 05:30 in the Mac's local time.
 One job runs stable first, then nightly, so scheduled builds never overlap.
 Nightly still runs if stable fails. Every slot looks for newly published releases;
 unchanged releases do not rebuild. A staged installation is retried first.
@@ -43,7 +43,7 @@ and its upstream tag. Publication
 retries use a receipt for the exact validated commit; unbuilt local changes
 are never pushed by a no-update check. A partial staging copy is not installed.
 
-Followers check at 07:00, 07:30, 08:00 and 08:30, fetch the published branches and
+Followers check at 05:00, 05:30, 06:00 and 06:30, fetch the published branches and
 build/sign locally. A follower keeps checking its later slots if the maintainer
 has not published yet. An open target app is restarted only when no chat is
 active. Updating the closed app does not launch it beside another T3 app.
