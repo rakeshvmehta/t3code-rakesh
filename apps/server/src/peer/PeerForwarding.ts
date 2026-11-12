@@ -1,4 +1,8 @@
 import {
+  SidebarSectionsMcpInput,
+  SidebarSectionsMcpResult,
+} from "@t3tools/contracts/sidebarOrganization";
+import {
   type EnvironmentId,
   OrchestratorMcpFailure,
   type OrchestratorMcpEnvironmentLinksResult,
@@ -55,6 +59,10 @@ export class PeerForwarding extends Context.Service<
       environmentId: EnvironmentId,
       params: Tool.Parameters<T>,
     ) => Effect.Effect<Tool.Success<T>, OrchestratorMcpFailure>;
+    readonly readSidebarSections: (
+      scope: Scope,
+      environmentId: EnvironmentId,
+    ) => Effect.Effect<SidebarSectionsMcpResult, OrchestratorMcpFailure>;
     /** `t3_thread_read` there. */
     readonly readThread: (
       scope: Scope,
@@ -274,6 +282,16 @@ const make = Effect.gen(function* () {
 
   return PeerForwarding.of({
     call,
+    readSidebarSections: Effect.fn("PeerForwarding.readSidebarSections")((scope, environmentId) =>
+      forward<SidebarSectionsMcpResult>(
+        scope,
+        "t3_sections",
+        SidebarSectionsMcpInput,
+        SidebarSectionsMcpResult,
+        environmentId,
+        { action: "list" },
+      ),
+    ),
     readThread,
     interruptThread,
     waitForThread,

@@ -1,3 +1,5 @@
+import * as SidebarOrganization from "./sidebar/SidebarOrganization.ts";
+import * as SidebarOrganizationApplication from "./sidebar/SidebarOrganizationApplication.ts";
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -1510,6 +1512,9 @@ export const layerWsRpc = (
       const storageCleanup = yield* StorageCleanup.StorageCleanup;
       const databaseStorage = yield* DatabaseStorage.DatabaseStorage;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
+      const sidebar = yield* SidebarOrganization.SidebarOrganization;
+      const sidebarApplication =
+        yield* SidebarOrganizationApplication.SidebarOrganizationApplication;
       const secretResolver = yield* SecretResolver.SecretResolver;
       const peerLinks = yield* PeerLinks.PeerLinks;
       const peerLinkRequests = yield* PeerLinkRequests.PeerLinkRequests;
@@ -2595,6 +2600,10 @@ export const layerWsRpc = (
           Effect.fnUntraced(function* (rule) {
             return yield* keybindings.removeKeybindingRule(rule);
           }),
+        [WS_METHODS.sidebarWatch]: () => sidebar.changes,
+        [WS_METHODS.sidebarMutate]: (input) => sidebarApplication.mutate(input),
+        [WS_METHODS.sidebarImport]: (input) => sidebar.importLegacy(input),
+        [WS_METHODS.sidebarCachePeer]: (input) => sidebar.cachePeer(input),
         [WS_METHODS.serverRunStorageCleanup]: () => storageCleanup.runNow,
         [WS_METHODS.serverGetStorageCleanupReport]: () => storageCleanup.reports,
         [WS_METHODS.serverGetDatabaseStorage]: () => databaseStorage.status,
@@ -3429,6 +3438,9 @@ export const WS_RPC_SERVER_OPTIONS = {
 export const layer = Layer.unwrap(
   Effect.gen(function* () {
     const serverBrowser = yield* ServerBrowser.ServerBrowser;
+    const sharedSidebar = yield* SidebarOrganization.SidebarOrganization;
+    const sharedSidebarApplication =
+      yield* SidebarOrganizationApplication.SidebarOrganizationApplication;
     const serverSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
     const npmRelease = yield* NpmRelease.NpmRelease;
     const pullRequests = yield* PullRequestService.PullRequestService;
@@ -3570,6 +3582,11 @@ export const layer = Layer.unwrap(
           () => sessions.markDisconnected(session.sessionId),
         );
       }).pipe(
+        Effect.provideService(SidebarOrganization.SidebarOrganization, sharedSidebar),
+        Effect.provideService(
+          SidebarOrganizationApplication.SidebarOrganizationApplication,
+          sharedSidebarApplication,
+        ),
         Effect.catchTags({
           EnvironmentAuthInvalidError: HttpServerRespondable.toResponse,
           EnvironmentInternalError: HttpServerRespondable.toResponse,

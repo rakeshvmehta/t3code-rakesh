@@ -1,4 +1,6 @@
+import { EMPTY_SIDEBAR_ORGANIZATION } from "@t3tools/contracts/sidebarOrganization";
 import {
+  clientRpcRequiredScopes,
   AuthEnvironmentMaintainScope,
   AuthDiagnosticsReadScope,
   AuthFilesystemReadScope,
@@ -31,6 +33,29 @@ import {
 import * as RpcAuthorization from "./RpcAuthorization.ts";
 
 describe("RPC authorization scopes", () => {
+  it("keeps sidebar reads, chat metadata changes and section management at their existing scope levels", () => {
+    expect([requiredScopeForRpcMethod(WS_METHODS.sidebarWatch)]).toEqual([
+      AuthOrchestrationReadScope,
+    ]);
+    expect(
+      clientRpcRequiredScopes(WS_METHODS.sidebarMutate, {
+        type: "thread.note",
+        threadKey: "env:thread",
+        note: "Note",
+      }),
+    ).toEqual([AuthOrchestrationOperateScope]);
+    expect(
+      clientRpcRequiredScopes(WS_METHODS.sidebarMutate, { type: "section.delete", id: "section" }),
+    ).toEqual([AuthSettingsWriteScope]);
+    expect(
+      clientRpcRequiredScopes(WS_METHODS.sidebarImport, {
+        sourceId: "profile",
+        sections: [{ id: "section", name: "Section" }],
+        threads: {},
+      }),
+    ).toEqual([AuthSettingsWriteScope]);
+  });
+
   it("declares exactly one scope for every RPC in the server group", () => {
     expect(new Set(Object.keys(RPC_REQUIRED_SCOPES))).toEqual(new Set(WsRpcGroup.requests.keys()));
   });
@@ -471,4 +496,43 @@ it.effect("denies manual cleanup before the handler without settings permission"
     });
     expect(handled).toBe(false);
   }).pipe(Effect.scoped),
+);
+
+it.effect(
+  "refuses mixed sidebar imports from a settings-only connection before the handler runs",
+  () =>
+    Effect.gen(function* () {
+      const group = WsRpcGroup.omit(
+        ...[...WsRpcGroup.requests.keys()].filter(
+          (
+            tag,
+          ): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.sidebarImport> =>
+            tag !== WS_METHODS.sidebarImport,
+        ),
+      );
+      let calls = 0;
+      const client = yield* RpcTest.makeClient(group).pipe(
+        Effect.provide(
+          Layer.merge(
+            group.toLayerHandler(WS_METHODS.sidebarImport, () =>
+              Effect.sync(() => {
+                calls++;
+                return EMPTY_SIDEBAR_ORGANIZATION;
+              }),
+            ),
+            RpcAuthorization.layer([AuthSettingsWriteScope]),
+          ),
+        ),
+      );
+      const denied = yield* client[WS_METHODS.sidebarImport]({
+        sourceId: "profile",
+        sections: [{ id: "s", name: "Section" }],
+        threads: { "env:thread": { note: "No" } },
+      }).pipe(Effect.flip);
+      expect(denied).toMatchObject({
+        _tag: "EnvironmentAuthorizationError",
+        requiredPermission: AuthOrchestrationOperateScope,
+      });
+      expect(calls).toBe(0);
+    }).pipe(Effect.scoped),
 );

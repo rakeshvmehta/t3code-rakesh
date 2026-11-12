@@ -1,69 +1,100 @@
-import { useEffect } from "react";
+import { useAtomValue } from "@effect/atom-react";
+import * as Schema from "effect/Schema";
+import { uniqueOrderKeyBetween } from "@t3tools/shared/orderKey";
 
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { randomUUID } from "../../lib/utils";
 import {
-  EMPTY_SIDEBAR_SECTIONS_STATE,
-  SIDEBAR_SECTIONS_STORAGE_KEY,
-  SidebarSectionsStateSchema,
-  addSection,
-  assignThread,
-  deleteSection,
-  moveSection,
-  placeThread,
-  pruneAssignments,
-  renameSection,
-  resolveLiveThreadKeys,
-  rememberThreadOrder,
-  toggleSectionCollapsed,
-} from "./sidebarSections.logic";
+  organizationViewAtom,
+  legacyOrganizationAtom,
+} from "../../state/sidebarOrganization/state";
+import { useOrganizationActions } from "../../state/sidebarOrganization/useOrganizationActions";
+import { useOrganizationSync } from "../../state/sidebarOrganization/useOrganizationSync";
 
-// Sections live in this browser profile only; they never reach the server.
-export function useSidebarSections(activeKeys: readonly string[]) {
-  const [storedState, setState] = useLocalStorage(
-    SIDEBAR_SECTIONS_STORAGE_KEY,
-    EMPTY_SIDEBAR_SECTIONS_STATE,
-    SidebarSectionsStateSchema,
-  );
-  const state = rememberThreadOrder(storedState, activeKeys);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- persist observed custom positions before Working temporarily removes rows
-  useEffect(() => {
-    if (state !== storedState) setState((current) => rememberThreadOrder(current, activeKeys));
-  }, [state, storedState, activeKeys, setState]);
+const COLLAPSE_KEY = "t3code:rakesh:sidebar-collapse:v1";
+const EMPTY_COLLAPSE: Readonly<Record<string, boolean>> = {};
+const CollapseSchema = Schema.Record(Schema.String, Schema.Boolean);
+
+export function useSidebarSections(_activeKeys: readonly string[]) {
+  useOrganizationSync();
+  const view = useAtomValue(organizationViewAtom);
+  const legacy = useAtomValue(legacyOrganizationAtom);
+  const actions = useOrganizationActions();
+  const [collapse, setCollapse] = useLocalStorage(COLLAPSE_KEY, EMPTY_COLLAPSE, CollapseSchema);
+  const state = {
+    ...view.sections,
+    sections: view.sections.sections.map((section) => ({
+      ...section,
+      collapsed:
+        collapse[`${actions.primary}:${section.id}`] ??
+        legacy.sections.sections.find((old) => old.id === section.id)?.collapsed ??
+        false,
+    })),
+    chatsCollapsed: collapse[`${actions.primary}:chats`] ?? legacy.sections.chatsCollapsed,
+  };
+  const assign = (threadKey: string, sectionId: string | null, orderKey: string | null = null) => {
+    if (sectionId !== null && actions.primary === null) return Promise.resolve(false);
+    return actions.mutate({
+      type: "thread.place",
+      threadKey,
+      placement:
+        sectionId === null || actions.primary === null
+          ? null
+          : {
+              collectionEnvironmentId: actions.primary,
+              sectionId,
+              orderKey,
+            },
+    });
+  };
   return {
     state,
-    add: (name: string) => {
+    canManage: actions.canManage,
+    canChangeThread: actions.canChangeThread,
+    add: async (name: string) => {
       const id = randomUUID();
-      setState((current) => addSection(current, id, name));
-      return id;
+      return (await actions.mutate({ type: "section.create", id, name })) ? id : null;
     },
-    rename: (id: string, name: string) => setState((current) => renameSection(current, id, name)),
-    remove: (id: string) => setState((current) => deleteSection(current, id)),
-    move: (id: string, delta: -1 | 1) => setState((current) => moveSection(current, id, delta)),
-    toggle: (id: string | "chats") => setState((current) => toggleSectionCollapsed(current, id)),
-    // Writes double as the lazy prune point: a user-driven drop only happens
-    // once the thread list has loaded, so dead keys can be dropped safely.
-    assign: (threadKey: string, sectionId: string | null, loadedThreadKeys?: readonly string[]) =>
-      setState((current) => {
-        const assigned = assignThread(current, threadKey, sectionId);
-        return loadedThreadKeys
-          ? pruneAssignments(assigned, resolveLiveThreadKeys(assigned, loadedThreadKeys))
-          : assigned;
-      }),
+    rename: (id: string, name: string) => actions.mutate({ type: "section.rename", id, name }),
+    remove: (id: string) => actions.mutate({ type: "section.delete", id }),
+    move: (id: string, delta: -1 | 1) => {
+      const ids = state.sections.map((s) => s.id);
+      const index = ids.indexOf(id);
+      if (index < 0 || index + delta < 0 || index + delta >= ids.length) return;
+      [ids[index], ids[index + delta]] = [ids[index + delta]!, ids[index]!];
+      void actions.mutate({ type: "section.reorder", sectionIds: ids });
+    },
+    toggle: (id: string | "chats") =>
+      setCollapse((current) => ({
+        ...current,
+        [`${actions.primary}:${id}`]: !(id === "chats"
+          ? state.chatsCollapsed
+          : state.sections.find((s) => s.id === id)?.collapsed),
+      })),
+    assign: (threadKey: string, sectionId: string | null, _loadedThreadKeys?: readonly string[]) =>
+      assign(threadKey, sectionId),
     place: (
       threadKey: string,
       sectionId: string | null,
       orderedKeys: readonly string[],
-      loadedThreadKeys: readonly string[],
-    ) =>
-      setState((current) => {
-        const placed = placeThread(
-          rememberThreadOrder(current, activeKeys),
-          threadKey,
-          sectionId,
-          orderedKeys,
-        );
-        return pruneAssignments(placed, resolveLiveThreadKeys(placed, loadedThreadKeys));
-      }),
+      _loadedThreadKeys: readonly string[],
+    ) => {
+      if (sectionId === null) {
+        void assign(threadKey, null);
+        return;
+      }
+      const siblings = orderedKeys.filter(
+        (key) => key === threadKey || state.assignments[key] === sectionId,
+      );
+      const index = siblings.indexOf(threadKey);
+      const before =
+        index > 0 ? (view.threads[siblings[index - 1]!]?.placement?.orderKey ?? null) : null;
+      const after =
+        index >= 0 && index + 1 < siblings.length
+          ? (view.threads[siblings[index + 1]!]?.placement?.orderKey ?? null)
+          : null;
+      const rank = uniqueOrderKeyBetween(before, after, randomUUID());
+      void assign(threadKey, sectionId, rank);
+    },
   };
 }

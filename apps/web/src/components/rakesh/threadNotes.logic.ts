@@ -1,8 +1,7 @@
 import type { ContextMenuItem } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 
-// Private reminders on threads ("blocked on the staging deploy"), keyed by
-// scoped thread key. They live in this browser profile only, like sections.
+// The old browser key remains a migration source for shared thread reminders.
 export const THREAD_NOTES_STORAGE_KEY = "t3code:rakesh:thread-notes:v1";
 
 export const THREAD_NOTE_MAX_LENGTH = 500;

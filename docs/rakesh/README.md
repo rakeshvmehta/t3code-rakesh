@@ -3,7 +3,8 @@
 An unofficial personal fork of [T3 Code](https://github.com/pingdotgg/t3code)
 that adds **custom sidebar sections**: create sections from the sidebar header,
 drag chats into them (a chat keeps its project), collapse them, rename,
-reorder or delete them. Everything else is upstream T3 Code, merged from each
+reorder or delete them. Notes and sections are shared with the [T3 tools](TOOLS.md).
+Everything else is upstream T3 Code, merged from each
 stable release on a daily schedule. Not affiliated with T3 Tools.
 
 The branch is `rakesh/main`; our changes are the `rakesh:` commits. The app

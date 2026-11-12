@@ -1,4 +1,11 @@
 import {
+  SidebarOrganizationState,
+  SidebarOrganizationMutation,
+  SidebarOrganizationImport,
+  SidebarOrganizationCache,
+  SidebarOrganizationError,
+} from "./sidebarOrganization.ts";
+import {
   OrchestrationV2SearchThreadError,
   OrchestrationV2SearchThreadInput,
   OrchestrationV2SearchThreadResult,
@@ -522,6 +529,10 @@ export const WS_METHODS = {
   peerLinksUnlink: "peerLinks.unlink",
   peerLinksAnswerRequest: "peerLinks.answerRequest",
   serverUpdateSettings: "server.updateSettings",
+  sidebarWatch: "sidebar.organization.watch",
+  sidebarMutate: "sidebar.organization.mutate",
+  sidebarImport: "sidebar.organization.import",
+  sidebarCachePeer: "sidebar.organization.cachePeer",
   serverDiscoverSourceControl: "server.discoverSourceControl",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
   serverPrepareAcpRegistryAgent: "server.prepareAcpRegistryAgent",
@@ -848,6 +859,29 @@ const WsPeerLinksUnlinkRpc = Rpc.make(WS_METHODS.peerLinksUnlink, {
 const WsPeerLinksAnswerRequestRpc = Rpc.make(WS_METHODS.peerLinksAnswerRequest, {
   payload: PeerLinkRequestAnswerInput,
   error: Schema.Union([PeerLinkRequestError, EnvironmentAuthorizationError]),
+});
+
+const sidebarError = Schema.Union([SidebarOrganizationError, EnvironmentAuthorizationError]);
+const WsSidebarWatchRpc = Rpc.make(WS_METHODS.sidebarWatch, {
+  payload: Schema.Struct({}),
+  success: SidebarOrganizationState,
+  error: sidebarError,
+  stream: true,
+});
+const WsSidebarMutateRpc = Rpc.make(WS_METHODS.sidebarMutate, {
+  payload: SidebarOrganizationMutation,
+  success: SidebarOrganizationState,
+  error: sidebarError,
+});
+const WsSidebarImportRpc = Rpc.make(WS_METHODS.sidebarImport, {
+  payload: SidebarOrganizationImport,
+  success: SidebarOrganizationState,
+  error: sidebarError,
+});
+const WsSidebarCachePeerRpc = Rpc.make(WS_METHODS.sidebarCachePeer, {
+  payload: SidebarOrganizationCache,
+  success: SidebarOrganizationState,
+  error: sidebarError,
 });
 
 const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSettings, {
@@ -2096,6 +2130,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerGetDatabaseStorageRpc,
   WsServerReclaimDatabaseSpaceRpc,
   WsServerUpdateSettingsRpc,
+  WsSidebarWatchRpc,
+  WsSidebarMutateRpc,
+  WsSidebarImportRpc,
+  WsSidebarCachePeerRpc,
   WsPeerLinksListRpc,
   WsPeerLinksLinkRpc,
   WsPeerLinksUnlinkRpc,
