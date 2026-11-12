@@ -3,10 +3,10 @@ import { useState, type ReactNode } from "react";
 
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 
-import type {
+import {
   resolveSidebarDropTarget,
-  SidebarListItem,
-  SidebarListMarker,
+  type SidebarListItem,
+  type SidebarListMarker,
 } from "../Sidebar.logic";
 import { SidebarCustomSectionHeader } from "./SidebarSectionHeader";
 import {
@@ -17,6 +17,7 @@ import {
 } from "./sidebarSections.list";
 import {
   groupActiveThreadKeys,
+  placeThread,
   sectionIdForThread,
   upstreamActiveOrder,
 } from "./sidebarSections.logic";
@@ -33,7 +34,7 @@ export function useSidebarSectionsController(input: {
   readonly routeThreadKey: string | null;
 }) {
   const { activeKeys, routeThreadKey } = input;
-  const sections = useSidebarSections();
+  const sections = useSidebarSections(activeKeys);
   const { state } = sections;
   const [editing, setEditing] = useState<{ id: string; isNew: boolean } | null>(null);
   // undefined: the pointer is not over the active area.
@@ -53,8 +54,10 @@ export function useSidebarSectionsController(input: {
     overId: string,
   ) => {
     const sectionId = resolveDropSectionId(fullItems, activeKey, overId);
-    return sectionId !== undefined && sectionId !== sectionIdForThread(state, activeKey)
-      ? { sectionId }
+    const target = resolveSidebarDropTarget(fullItems, activeKey, overId);
+    if (sectionId === undefined || target === null) return null;
+    return placeThread(state, activeKey, sectionId, target.activeOrder) !== state
+      ? { sectionId, orderedKeys: target.activeOrder }
       : null;
   };
 
@@ -103,6 +106,9 @@ export function useSidebarSectionsController(input: {
 
   return {
     hasCustomSections,
+    hasCustomDropTarget: typeof dropTargetSectionId === "string",
+    isCustomDrop: (fullItems: readonly SidebarListItem[], activeKey: string, overId: string) =>
+      typeof resolveDropSectionId(fullItems, activeKey, overId) === "string",
     activeItems: (mode: "visible" | "full"): readonly SidebarListItem[] =>
       mode === "visible"
         ? visibleActiveItems
@@ -157,7 +163,7 @@ export function useSidebarSectionsController(input: {
     ) => {
       setDropTargetSectionId(undefined);
       const change = resolveChange(fullItems, activeKey, overId);
-      if (change) sections.assign(activeKey, change.sectionId, loadedThreadKeys);
+      if (change) sections.place(activeKey, change.sectionId, change.orderedKeys, loadedThreadKeys);
     },
     // A collapsed Pinned shelf hides its rows except the open chat; the "full"
     // list keeps them all so drops still plan against every pinned chat.

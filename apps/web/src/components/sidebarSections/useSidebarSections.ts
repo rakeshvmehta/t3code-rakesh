@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { randomUUID } from "../../lib/utils";
 import {
@@ -8,19 +10,26 @@ import {
   assignThread,
   deleteSection,
   moveSection,
+  placeThread,
   pruneAssignments,
   renameSection,
   resolveLiveThreadKeys,
+  rememberThreadOrder,
   toggleSectionCollapsed,
 } from "./sidebarSections.logic";
 
 // Sections live in this browser profile only; they never reach the server.
-export function useSidebarSections() {
-  const [state, setState] = useLocalStorage(
+export function useSidebarSections(activeKeys: readonly string[]) {
+  const [storedState, setState] = useLocalStorage(
     SIDEBAR_SECTIONS_STORAGE_KEY,
     EMPTY_SIDEBAR_SECTIONS_STATE,
     SidebarSectionsStateSchema,
   );
+  const state = rememberThreadOrder(storedState, activeKeys);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- persist observed custom positions before Working temporarily removes rows
+  useEffect(() => {
+    if (state !== storedState) setState((current) => rememberThreadOrder(current, activeKeys));
+  }, [state, storedState, activeKeys, setState]);
   return {
     state,
     add: (name: string) => {
@@ -40,6 +49,21 @@ export function useSidebarSections() {
         return loadedThreadKeys
           ? pruneAssignments(assigned, resolveLiveThreadKeys(assigned, loadedThreadKeys))
           : assigned;
+      }),
+    place: (
+      threadKey: string,
+      sectionId: string | null,
+      orderedKeys: readonly string[],
+      loadedThreadKeys: readonly string[],
+    ) =>
+      setState((current) => {
+        const placed = placeThread(
+          rememberThreadOrder(current, activeKeys),
+          threadKey,
+          sectionId,
+          orderedKeys,
+        );
+        return pruneAssignments(placed, resolveLiveThreadKeys(placed, loadedThreadKeys));
       }),
   };
 }

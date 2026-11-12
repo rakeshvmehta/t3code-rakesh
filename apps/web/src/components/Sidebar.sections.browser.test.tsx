@@ -63,6 +63,7 @@ it("keeps saved custom sections separate from project folders when switching mod
     .element(page.getByRole("button", { name: "New section", exact: true }))
     .toBeVisible();
   await expect.element(page.getByText(second.title, { exact: true }).first()).toBeVisible();
+  const saved = localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY);
 
   await act(() => updateClientSettings({ boringSidebarEnabled: true }));
   await expect.element(page.getByRole("button", { name: /^render/ })).toBeVisible();
@@ -71,10 +72,10 @@ it("keeps saved custom sections separate from project folders when switching mod
   await expect
     .element(page.getByRole("button", { name: "New section", exact: true }))
     .not.toBeInTheDocument();
-  expect(localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY)).toBe(stored);
+  expect(localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY)).toBe(saved);
 
   await act(() => updateClientSettings({ boringSidebarEnabled: false }));
   await expect.element(customSection).toHaveTextContent("Priority");
   await expect.element(page.getByText(second.title, { exact: true }).first()).toBeVisible();
-  expect(localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY)).toBe(stored);
+  expect(localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY)).toBe(saved);
 });

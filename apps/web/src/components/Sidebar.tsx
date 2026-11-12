@@ -2074,7 +2074,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     enabled: !isContextDrag,
     boundaryLabelHeight: SIDEBAR_DRAG_LABEL_HEIGHT,
     settledOrder: draggedSettledOrder,
-    ...(draggedActiveOrder === undefined ? {} : { activeOrder: draggedActiveOrder }),
+    ...(draggedActiveOrder === undefined || sectionsController.hasCustomDropTarget
+      ? {}
+      : { activeOrder: draggedActiveOrder }),
     settledExpanded: settledShelfExpanded,
     settledVisibleCount,
     routeThreadKey: routeRowThreadKey,
@@ -2112,7 +2114,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             activeOrder: sectionsController.activeOrder,
             activeKeysById,
             activeReorderableKeys: activeReorderableThreadKeys,
-            activeTimeOrdered: workingShelfEnabled,
+            activeTimeOrdered:
+              workingShelfEnabled ||
+              sectionsController.isCustomDrop(sidebarListItemsFull, draggedThreadKey, id),
           }).kind !== "none"
         );
       },
@@ -2159,7 +2163,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       activeOrder: sectionsController.activeOrder,
       activeKeysById,
       activeReorderableKeys: activeReorderableThreadKeys,
-      activeTimeOrdered: workingShelfEnabled,
+      activeTimeOrdered:
+        workingShelfEnabled ||
+        sectionsController.isCustomDrop(sidebarListItemsFull, activeKey, String(event.over!.id)),
     });
     if (plan.kind === "none") return;
     if (plan.kind === "settle" && settlingThreadKeysRef.current.has(activeKey)) return;
