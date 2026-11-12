@@ -164,16 +164,39 @@ BUILD
         self.assertNotIn('refs/tags/' + self.nightly_tag, refs)
         self.assertNotIn('refs/remotes/upstream/nightly', refs)
 
-    def test_successful_no_update_check_skips_repeated_work(self):
+    def test_repeated_checks_of_an_unchanged_release_do_not_rebuild(self):
         self.git('-C', str(self.repo), 'fetch', '-q', '--no-tags', 'upstream',
                  'refs/tags/v0.1.7:refs/tags/v0.1.7')
         self.git('-C', str(self.repo), 'merge', '-q', '--ff-only', 'v0.1.7')
         self.installed('0.1.7')
         self.assertEqual(self.run_updater().returncode, 0, self.log())
-        self.git('-C', str(self.repo), 'remote', 'set-url', 'upstream',
-                 str(self.root / 'offline'))
         self.assertEqual(self.run_updater().returncode, 0, self.log())
         self.assertFalse(self.builds.exists())
+
+    def assert_later_release_is_discovered(self, nightly=False):
+        if nightly:
+            self.nightly()
+        current_tag = self.env['RAKESH_UPDATE_TAG']
+        self.git('-C', str(self.repo), 'fetch', '-q', '--no-tags', 'upstream',
+                 f'refs/tags/{current_tag}:refs/tags/{current_tag}')
+        self.git('-C', str(self.repo), 'merge', '-q', '--ff-only', current_tag)
+        self.installed(current_tag.removeprefix('v'))
+        self.assertEqual(self.run_updater().returncode, 0, self.log())
+        later_tag = 'v0.1.8-nightly.20261111.456' if nightly else 'v0.1.8'
+        self.git('-C', str(self.upstream), 'switch', '-q', 'nightly' if nightly else 'main')
+        (self.upstream / 'later-release').write_text('published after the first check')
+        self.git('-C', str(self.upstream), 'add', '.')
+        self.git('-C', str(self.upstream), 'commit', '-qm', 'later release')
+        self.git('-C', str(self.upstream), 'tag', later_tag)
+        self.env['RAKESH_UPDATE_TAG'] = later_tag
+        self.assertEqual(self.run_updater().returncode, 1, self.log())
+        self.assertEqual(self.builds.read_text().splitlines(), ['build'])
+
+    def test_stable_discovers_a_later_release_after_a_successful_same_day_check(self):
+        self.assert_later_release_is_discovered()
+
+    def test_nightly_discovers_a_later_release_after_a_successful_same_day_check(self):
+        self.assert_later_release_is_discovered(nightly=True)
 
     def test_nightly_build_failure_retries_without_advancing_source_or_installing(self):
         self.nightly()

@@ -24,9 +24,17 @@ The first build takes about 10 minutes. Then open **T3 Code (Rakesh)** from
 Applications. On first launch macOS asks for your password to let it use the
 "t3code Safe Storage" keychain item; choose **Always Allow**. That happens once.
 
-## Stable-release updater
+## Scheduled updates
 
-A LaunchAgent pulls this repo at 05:00 and, if there is anything new, builds
+For both stable and nightly, use `scripts/rakesh/install-launch-agent.sh both`.
+The maintainer runs stable then nightly at 06:00, with further checks every
+30 minutes through 07:30. Followers use 07:00 through 08:30. Every slot looks
+for new releases and skips rebuilding unchanged apps. This replaces separate
+channel jobs; see [T3-RN setup](NIGHTLY.md) for branch prerequisites and VM roles.
+Re-running setup preserves an existing combined job and its role.
+
+A stable-only installation keeps its original schedule: a LaunchAgent pulls
+this repo at 05:00 and, if there is anything new, builds
 and installs it (retrying every 30 minutes until 06:30 while a chat is still
 working). The maintainer's Mac merges upstream at 04:00 and pushes here only
 after the build and tests pass. Logs: `~/Library/Logs/t3code-rakesh/stable-update-YYYY-MM-DD.log`.
@@ -51,5 +59,7 @@ checked against DM history before any resend. Mac notifications remain enabled.
 - Sidebar sections are stored on your Mac only.
 - To roll back: quit the app, then replace `/Applications/T3 Code (Rakesh).app`
   with `/Applications/T3 Code (Rakesh).app.prev`.
-- Uninstall: `launchctl bootout gui/$(id -u)/com.rakesh.t3code.stable-update`,
-  delete `~/Library/LaunchAgents/com.rakesh.t3code.stable-update.plist` and the app.
+- Uninstall a combined schedule with
+  `launchctl bootout gui/$(id -u)/com.rakesh.t3code.release-update`, then delete
+  `~/Library/LaunchAgents/com.rakesh.t3code.release-update.plist` and the apps.
+  Stable-only installs use `com.rakesh.t3code.stable-update` instead.
