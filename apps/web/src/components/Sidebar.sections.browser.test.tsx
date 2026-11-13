@@ -42,6 +42,8 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
 
 it("migrates saved sections, preserves folder mode, and syncs tool/UI changes", async () => {
   await page.viewport(1400, 900);
+  // Control the press guard's clock without freezing browser focus/transition timers.
+  using moveClock = vi.spyOn(performance, "now").mockReturnValue(0);
   const [first, second] = [threadWithHistory("visible", 1), threadWithHistory("assigned", 1)];
   using _environment = installFakeEnvironment([first, second], {
     sidebarOrganization: EMPTY_SIDEBAR_ORGANIZATION,
@@ -108,6 +110,8 @@ it("migrates saved sections, preserves folder mode, and syncs tool/UI changes", 
   );
   await expect.element(customSection).toHaveTextContent("Delivery");
 
+  // Remote section updates move rows; let the shift guard's press window expire.
+  moveClock.mockReturnValue(500);
   await page
     .elementLocator(document.querySelector(`[data-thread-item="${threadKey}"]`)!)
     .click({ button: "right" });

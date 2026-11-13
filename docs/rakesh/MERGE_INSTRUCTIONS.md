@@ -21,6 +21,11 @@ lives mostly in new files, and those almost never conflict:
 
 Our edits to upstream files are deliberately small:
 
+- `apps/web/vite.config.ts`: the browser test project sets
+  `fileParallelism: false` so local updater validation does not overload pointer
+  interactions. Unit tests keep their normal parallelism. The sections browser
+  test controls the performance clock and advances past the shift guard's
+  500 ms press window after remote row updates; preserve its UI assertions.
 - `apps/web/src/components/Sidebar.tsx`: `useSidebarSectionsController(...)`
   after `useSidebarThreads(...)`; `orderedThreadKeys` routed through
   `sectionsController.orderThreadKeys`; the active rows come from
