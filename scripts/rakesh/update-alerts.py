@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import uuid
+from datetime import date
 
 
 class Rejected(Exception):
@@ -39,17 +40,32 @@ def handle_event(path, slack, event, **details):
                 f"The update did not finish. Log on your Mac: {details['log']}.")
         state['outbox'].append({'kind': 'failure', 'incident': incident, 'status': 'pending',
                                 'text': f'{text} [{product} {incident} failure]'})
-    elif event == 'installed' and incident is not None:
-        # A rejected failure should not arrive after its successful installation.
-        for item in state['outbox']:
-            if item['incident'] == incident and item['status'] == 'pending':
-                item['status'] = 'superseded'
-        text = (f"{product} update recovered: {details['installed']} is installed. "
-                f"Log on your Mac: {details['log']}.")
-        state['outbox'].append({'kind': 'recovery', 'incident': incident, 'status': 'pending',
-                                'text': f'{text} [{product} {incident} recovery]'})
-        state['incident'] = None
+    elif event in ('installed', 'current'):
+        success = {'date': date.today().isoformat(), 'version': details['installed']}
+        previous = state.get('last_success', {})
+        same_release = all(previous.get(key) == value for key, value in success.items())
+        installed_after_check = event == 'installed' and previous.get('event') == 'current'
+        if incident is not None or not same_release or installed_after_check:
+            # A pending failure should not arrive after the update is healthy again.
+            for item in state['outbox']:
+                if item['incident'] == incident and item['status'] == 'pending':
+                    item['status'] = 'superseded'
+            kind = 'recovery' if incident is not None else 'success'
+            receipt_key = incident or f"{success['date']}:{success['version']}"
+            if incident is not None:
+                text = f"{product} update recovered: {details['installed']} is installed. "
+            elif event == 'installed':
+                text = f"{product} update succeeded: {details['installed']} is installed. "
+            else:
+                text = (f"{product} daily update check succeeded: already up to date "
+                        f"on {details['installed']}. ")
+            text += f"Log on your Mac: {details['log']}."
+            state['outbox'].append({'kind': kind, 'incident': receipt_key, 'status': 'pending',
+                                    'text': f'{text} [{product} {receipt_key} {kind}]'})
+            state['last_success'] = {**success, 'event': event}
+            state['incident'] = None
     save(path, state)
+    delivery_error = None
     for item in state['outbox']:
         if item['status'] in ('sent', 'superseded'):
             continue
@@ -59,9 +75,14 @@ def handle_event(path, slack, event, **details):
             except Exception as error:
                 item['last_error'] = safe_error(error)
                 save(path, state)
-                raise
+                delivery_error = delivery_error or error
+                continue
             if receipt is None:
-                raise Uncertain('Prior send has no confirmed receipt; not sending again')
+                error = Uncertain('Prior send has no confirmed receipt; not sending again')
+                item['last_error'] = safe_error(error)
+                save(path, state)
+                delivery_error = delivery_error or error
+                continue
         else:
             def before_send():
                 item['status'] = 'sending'
@@ -78,10 +99,13 @@ def handle_event(path, slack, event, **details):
                                   or item['status'] != 'sending' else 'uncertain')
                 item['last_error'] = safe_error(error)
                 save(path, state)
-                raise
+                delivery_error = delivery_error or error
+                continue
         item.pop('last_error', None)
         item.update(status='sent', receipt_id=receipt['id'])
         save(path, state)
+    if delivery_error is not None:
+        raise delivery_error
     return state
 
 
@@ -180,7 +204,7 @@ class ComposioSlack:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('event', choices=['failure', 'installed', 'flush'])
+    parser.add_argument('event', choices=['failure', 'installed', 'current', 'flush'])
     parser.add_argument('--state-dir', type=Path, required=True)
     parser.add_argument('--config', type=Path)
     parser.add_argument('--product', choices=['T3-R', 'T3-R (Nightly)', 'T3-RN'], default='T3-R')

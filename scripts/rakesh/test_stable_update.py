@@ -195,6 +195,8 @@ BUILD
         self.assertEqual(self.run_updater().returncode, 0, self.log())
         self.assertEqual(self.run_updater().returncode, 0, self.log())
         self.assertFalse(self.builds.exists())
+        self.assertEqual([json.loads(line)[0] for line in self.events.read_text().splitlines()],
+                         ['flush', 'current', 'flush', 'current'])
 
     def assert_later_release_is_discovered(self, nightly=False):
         if nightly:
@@ -326,6 +328,8 @@ ditto() { mkdir -p "$2/Contents"; echo incomplete >"$2/Contents/partial"; return
         self.git('-C', str(self.upstream), 'branch', 'rakesh/main', 'v0.1.3')
         self.installed('0.1.3')
         self.assertEqual(self.run_updater().returncode, 0, self.log())
+        self.assertEqual([json.loads(line)[0] for line in self.events.read_text().splitlines()],
+                         ['flush', 'current'])
         self.git('-C', str(self.upstream), 'branch', '-f', 'rakesh/main', 'v0.1.7')
         self.assertEqual(self.run_updater().returncode, 1, self.log())
         self.assertEqual(self.builds.read_text().splitlines(), ['build'])

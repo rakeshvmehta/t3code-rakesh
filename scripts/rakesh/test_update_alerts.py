@@ -4,6 +4,8 @@ from pathlib import Path
 import tempfile
 import unittest
 import subprocess
+from datetime import date
+from unittest.mock import patch
 
 
 class FakeSlack:
@@ -32,9 +34,10 @@ class UpdateAlertsTest(unittest.TestCase):
         self.slack = FakeSlack()
 
     def run_event(self, event, **values):
-        return alerts.handle_event(self.path, self.slack, event,
-                                   installed='0.1.3', target='v0.1.7',
-                                   stage='validation', log='/local/log.txt', **values)
+        details = dict(installed='0.1.3', target='v0.1.7',
+                       stage='validation', log='/local/log.txt')
+        details.update(values)
+        return alerts.handle_event(self.path, self.slack, event, **details)
 
     def test_repeated_failures_send_one_incoming_alert(self):
         self.run_event('failure')
@@ -44,16 +47,46 @@ class UpdateAlertsTest(unittest.TestCase):
         self.assertIn('0.1.3', self.slack.messages[0]['text'])
         self.assertIn('v0.1.7', self.slack.messages[0]['text'])
 
-    def test_only_an_install_after_failure_sends_recovery_once(self):
+    def test_install_success_and_recovery_each_send_once(self):
         self.run_event('installed')
-        self.assertEqual(self.slack.messages, [])
+        self.run_event('installed')
+        self.assertEqual(len(self.slack.messages), 1)
+        self.assertIn('succeeded', self.slack.messages[0]['text'])
         self.run_event('failure')
         self.run_event('flush')
-        self.assertEqual(len(self.slack.messages), 1)
-        self.run_event('installed')
-        self.run_event('installed')
         self.assertEqual(len(self.slack.messages), 2)
+        self.run_event('installed')
+        self.run_event('installed')
+        self.assertEqual(len(self.slack.messages), 3)
         self.assertIn('recovered', self.slack.messages[-1]['text'])
+
+    def test_current_release_sends_one_success_per_day(self):
+        with patch.object(alerts, 'date', create=True) as clock:
+            clock.today.return_value = date(2026, 11, 13)
+            self.run_event('current')
+            self.run_event('current')
+            self.run_event('flush')
+            self.assertEqual(len(self.slack.messages), 1)
+            self.assertIn('already up to date', self.slack.messages[0]['text'])
+            clock.today.return_value = date(2026, 11, 14)
+            self.run_event('current')
+            self.assertEqual(len(self.slack.messages), 2)
+            self.assertNotEqual(self.slack.messages[0]['text'], self.slack.messages[1]['text'])
+
+    def test_new_install_after_a_daily_check_still_sends_success(self):
+        self.run_event('current')
+        self.run_event('installed', installed='0.1.7')
+        self.run_event('current', installed='0.1.7')
+        self.assertEqual(len(self.slack.messages), 2)
+        self.assertIn('0.1.7 is installed', self.slack.messages[-1]['text'])
+
+    def test_install_after_current_check_reports_custom_build_of_same_version(self):
+        self.run_event('current')
+        self.run_event('installed')
+        self.run_event('installed')
+        self.run_event('current')
+        self.assertEqual(len(self.slack.messages), 2)
+        self.assertIn('0.1.3 is installed', self.slack.messages[-1]['text'])
 
     def test_new_incident_after_recovery_alerts_again(self):
         self.run_event('failure')
@@ -122,6 +155,21 @@ class UpdateAlertsTest(unittest.TestCase):
         with self.assertRaises(alerts.Uncertain):
             self.run_event('flush')
         self.assertEqual(self.slack.messages, [])
+
+    def test_uncertain_success_does_not_block_a_distinct_failure_alert(self):
+        self.slack.error = alerts.Uncertain('timeout')
+        with self.assertRaises(alerts.Uncertain):
+            self.run_event('current')
+        self.slack.error = None
+        with self.assertRaises(alerts.Uncertain):
+            self.run_event('failure')
+        self.assertEqual(len(self.slack.messages), 1)
+        self.assertIn('update failed', self.slack.messages[0]['text'])
+        state = json.loads(self.path.read_text())
+        self.assertEqual([item['status'] for item in state['outbox']], ['uncertain', 'sent'])
+        with self.assertRaises(alerts.Uncertain):
+            self.run_event('flush')
+        self.assertEqual(len(self.slack.messages), 1)
 
     def test_crash_after_recording_attempt_is_not_resent(self):
         self.slack.error = alerts.Uncertain('timeout')

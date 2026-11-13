@@ -251,6 +251,7 @@ if [[ "$MODE" == follow ]]; then
   base_tag="$(describe_tag "$new_head")"
   if [[ "$new_head" == "$old_head" && "$(installed_version)" == "${base_tag#v}" ]]; then
     log "$BRANCH already at origin; up to date, nothing to do"
+    slack_alert current
     trap - ERR
     exit 0
   fi
@@ -299,6 +300,7 @@ if git -C "$REPO" merge-base --is-ancestor "$tag" "$BRANCH" &&
    [[ "$(installed_version)" == "${tag#v}" ]]; then
   log "$BRANCH already contains $tag; up to date, nothing to do"
   echo "$TODAY" >"$SUCCESS_FILE"
+  slack_alert current
   trap - ERR
   exit 0
 fi
