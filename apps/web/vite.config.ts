@@ -126,6 +126,8 @@ const browserTestProject = {
   test: {
     name: "browser",
     include: ["src/**/*.browser.test.{ts,tsx}"],
+    // Concurrent browser files make pointer interactions time out on local update builds.
+    fileParallelism: false,
     hookTimeout: 15_000,
     testTimeout: 15_000,
     setupFiles: ["./test/browserSetup.ts"],
