@@ -1,0 +1,7 @@
+{
+  "run_id": 43563159573,
+  "candidate_sha": "1ca4e88c5831d2d59dce3d01ce3e20bdd975ecd6",
+  "source_sha": "55924693bb8565a9b9794cd79a086a6b46bb6ff4",
+  "channel": "stable",
+  "version": "0.1.10"
+}
