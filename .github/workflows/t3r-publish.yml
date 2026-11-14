@@ -90,8 +90,11 @@ jobs:
           \ Path\nimport shutil\nout=Path('release-assets');out.mkdir()\nfor folder in Path('downloaded').iterdir():\n for file\
           \ in folder.iterdir():\n  if file.name in ('builder-debug.yml','builder-effective-config.yaml'):continue\n  assert\
           \ file.is_file() and not file.is_symlink()\n  dest=out/file.name\n  if dest.exists():assert dest.read_bytes()==file.read_bytes(),\
-          \ 'Conflicting platform filenames'\n  else:shutil.copyfile(file,dest)\nPYTHON\nprefix=latest\nif [[ \"$CHANNEL\" ==\
-          \ nightly ]]; then prefix=nightly; fi\nnode scripts/merge-update-manifests.ts --platform mac \"release-assets/$prefix-mac.yml\"\
+          \ 'Conflicting platform filenames'\n  else:shutil.copyfile(file,dest)\nPYTHON\npython3 scripts/rakesh/test_feed_compatibility.py\n\
+          python3 - <<'PYTHON'\nimport importlib.util\nfrom pathlib import Path\nspec=importlib.util.spec_from_file_location('signing','scripts/rakesh/sign-mac-development.py')\n\
+          signing=importlib.util.module_from_spec(spec);spec.loader.exec_module(signing)\nimport yaml\nfor feed in Path('release-assets').glob('*-mac*.yml'):\n\
+          \ feed.write_text(signing.dump_feed(yaml.safe_load(feed.read_text())))\nPYTHON\nprefix=latest\nif [[ \"$CHANNEL\"\
+          \ == nightly ]]; then prefix=nightly; fi\nnode scripts/merge-update-manifests.ts --platform mac \"release-assets/$prefix-mac.yml\"\
           \ \"release-assets/$prefix-mac-x64.yml\"\nrm \"release-assets/$prefix-mac-x64.yml\"\nnode scripts/merge-update-manifests.ts\
           \ --platform win \"release-assets/$prefix-win-x64.yml\" \"release-assets/$prefix-win-arm64.yml\" \"release-assets/$prefix.yml\"\
           \nrm \"release-assets/$prefix-win-x64.yml\" \"release-assets/$prefix-win-arm64.yml\"\npython3 scripts/rakesh/verify-release-assets.py\

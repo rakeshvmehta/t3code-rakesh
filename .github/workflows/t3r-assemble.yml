@@ -31,14 +31,14 @@ jobs:
         run:
           "python3 - <<'PYTHON'\nimport json, subprocess, re, base64, os\nfrom pathlib import Path\nrequest=json.loads(Path('scripts/rakesh/assembly-request.json').read_text())\n\
           assert request['channel'] in ('stable','nightly')\nassert type(request['run_id']) is int and request['run_id']>0\n\
-          assert re.fullmatch('[0-9a-f]{40}',request['candidate_sha'])\nrepo='repos/rakeshvmehta/t3code-rakesh/'\n\
-          read=lambda endpoint:json.loads(subprocess.check_output(['gh','api',repo+endpoint]))\nrun=read('actions/runs/'+str(request['run_id']))\n\
+          assert re.fullmatch('[0-9a-f]{40}',request['candidate_sha'])\nrepo='repos/rakeshvmehta/t3code-rakesh/'\nread=lambda\
+          \ endpoint:json.loads(subprocess.check_output(['gh','api',repo+endpoint]))\nrun=read('actions/runs/'+str(request['run_id']))\n\
           assert run['conclusion']=='success' and run['head_sha']==request['candidate_sha'] and run['path']=='.github/workflows/t3r-candidate.yml'\n\
           content=read('contents/scripts/rakesh/release-candidate.json?ref='+request['candidate_sha'])\noriginal=json.loads(base64.b64decode(content['content']))\n\
-          assert all(original[k]==request[k] for k in ('channel','version','source_sha'))\npattern=r'(0|[1-9][0-9]*)\\\
-          .(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)'+(r'-nightly\\.[0-9]{8}\\.[1-9][0-9]*' if request['channel']=='nightly'\
-          \ else '')\nassert re.fullmatch(pattern,request['version'])\nwith open(os.environ['GITHUB_OUTPUT'],'a')\
-          \ as f:\n for k in ('run_id','channel','version'):f.write(f'{k}={request[k]}\\n')\nPYTHON"
+          assert all(original[k]==request[k] for k in ('channel','version','source_sha'))\npattern=r'(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\\
+          .(0|[1-9][0-9]*)'+(r'-nightly\\.[0-9]{8}\\.[1-9][0-9]*' if request['channel']=='nightly' else '')\nassert re.fullmatch(pattern,request['version'])\n\
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:\n for k in ('run_id','channel','version'):f.write(f'{k}={request[k]}\\\
+          n')\nPYTHON"
       - uses: ./.github/actions/setup-ci-deps
         with:
           install-args: --filter=@t3tools/scripts...
@@ -86,17 +86,19 @@ jobs:
           VERSION: ${{ steps.request.outputs.version }}
         shell: bash
         run:
-          "set -euo pipefail\nexport PYTHONPATH=\"$RUNNER_TEMP/assembly-python\"\npython3 - <<'PYTHON'\nfrom pathlib\
-          \ import Path\nimport shutil\nout=Path('release-assets');out.mkdir()\nfor folder in Path('downloaded').iterdir():\n\
-          \ for file in folder.iterdir():\n  if file.name in ('builder-debug.yml','builder-effective-config.yaml'):continue\n\
-          \  assert file.is_file() and not file.is_symlink()\n  dest=out/file.name\n  if dest.exists():assert dest.read_bytes()==file.read_bytes(),\
-          \ 'Conflicting platform filenames'\n  else:shutil.copyfile(file,dest)\nPYTHON\nprefix=latest\nif [[ \"$CHANNEL\"\
+          "set -euo pipefail\nexport PYTHONPATH=\"$RUNNER_TEMP/assembly-python\"\npython3 - <<'PYTHON'\nfrom pathlib import\
+          \ Path\nimport shutil\nout=Path('release-assets');out.mkdir()\nfor folder in Path('downloaded').iterdir():\n for file\
+          \ in folder.iterdir():\n  if file.name in ('builder-debug.yml','builder-effective-config.yaml'):continue\n  assert\
+          \ file.is_file() and not file.is_symlink()\n  dest=out/file.name\n  if dest.exists():assert dest.read_bytes()==file.read_bytes(),\
+          \ 'Conflicting platform filenames'\n  else:shutil.copyfile(file,dest)\nPYTHON\npython3 scripts/rakesh/test_feed_compatibility.py\n\
+          python3 - <<'PYTHON'\nimport importlib.util\nfrom pathlib import Path\nspec=importlib.util.spec_from_file_location('signing','scripts/rakesh/sign-mac-development.py')\n\
+          signing=importlib.util.module_from_spec(spec);spec.loader.exec_module(signing)\nimport yaml\nfor feed in Path('release-assets').glob('*-mac*.yml'):\n\
+          \ feed.write_text(signing.dump_feed(yaml.safe_load(feed.read_text())))\nPYTHON\nprefix=latest\nif [[ \"$CHANNEL\"\
           \ == nightly ]]; then prefix=nightly; fi\nnode scripts/merge-update-manifests.ts --platform mac \"release-assets/$prefix-mac.yml\"\
           \ \"release-assets/$prefix-mac-x64.yml\"\nrm \"release-assets/$prefix-mac-x64.yml\"\nnode scripts/merge-update-manifests.ts\
           \ --platform win \"release-assets/$prefix-win-x64.yml\" \"release-assets/$prefix-win-arm64.yml\" \"release-assets/$prefix.yml\"\
           \nrm \"release-assets/$prefix-win-x64.yml\" \"release-assets/$prefix-win-arm64.yml\"\npython3 scripts/rakesh/verify-release-assets.py\
-          \ release-assets --channel \"$CHANNEL\" --version \"$VERSION\"\ncp scripts/rakesh/assembly-request.json\
-          \ release-assets/source-build.json"
+          \ release-assets --channel \"$CHANNEL\" --version \"$VERSION\"\ncp scripts/rakesh/assembly-request.json release-assets/source-build.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: verified-update-feeds
