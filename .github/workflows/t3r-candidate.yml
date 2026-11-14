@@ -19,14 +19,21 @@ jobs:
       source_sha: ${{ steps.manifest.outputs.source_sha }}
     steps:
       - &id001
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          sparse-checkout: "/*
+        name: Checkout candidate
+        shell: bash
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: 'set -euo pipefail
 
-            !/.repos/"
-          sparse-checkout-cone-mode: false
+          git init .
+
+          git remote add origin "https://github.com/rakeshvmehta/t3code-rakesh.git"
+
+          git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
+
+          git sparse-checkout set --no-cone ''/*'' ''!/.repos/''
+
+          git checkout --detach FETCH_HEAD'
       - id: manifest
         run: python3 scripts/rakesh/release-manifest.py
   bundle:
