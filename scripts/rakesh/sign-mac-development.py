@@ -8,6 +8,7 @@ from pathlib import Path
 import plistlib
 import re
 import secrets
+import shlex
 import subprocess
 import tempfile
 import urllib.parse
@@ -62,10 +63,12 @@ def main():
         temp=Path(tmp);keychain=temp/'signing.keychain-db';p12=temp/'identity.p12'
         p12.write_bytes(base64.b64decode(os.environ.pop('T3R_MAC_DEVELOPMENT_P12'),validate=True));p12.chmod(0o600)
         keypass=secrets.token_urlsafe(36)
+        previous_keychains=shlex.split(run("security","list-keychains","-d","user"))
         try:
             run('security','create-keychain','-p',keypass,str(keychain))
             run('security','set-keychain-settings','-lut','21600',str(keychain))
             run('security','unlock-keychain','-p',keypass,str(keychain))
+            run('security','list-keychains','-d','user','-s',str(keychain),*previous_keychains)
             run('security','import',str(p12),'-k',str(keychain),'-P',os.environ.pop('T3R_MAC_DEVELOPMENT_PASSWORD'),'-T','/usr/bin/codesign')
             run('security','set-key-partition-list','-S','apple-tool:,apple:,codesign:','-s','-k',keypass,str(keychain))
             identities=run('security','find-identity','-v','-p','codesigning',str(keychain))
@@ -101,7 +104,9 @@ def main():
                      'codesign_verified':True,'notarized':False,'signing_mode':'approved-personal-development'}
             (root/f'mac-signing-{args.arch}.json').write_text(json.dumps(receipt,indent=2)+'\n')
         finally:
-            if keychain.exists():run('security','delete-keychain',str(keychain))
+            try:run('security','list-keychains','-d','user','-s',*previous_keychains)
+            finally:
+                if keychain.exists():run('security','delete-keychain',str(keychain))
 
 
 if __name__=='__main__':main()
