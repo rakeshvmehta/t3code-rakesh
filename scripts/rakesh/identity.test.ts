@@ -23,6 +23,10 @@ it("uses the Rakesh identity that build.sh sets", () => {
   vi.stubEnv("T3CODE_DESKTOP_PRODUCT_NAME", "T3 Code (Rakesh)");
   assert.equal(resolveDesktopAppId(), "com.rakesh.t3code");
   assert.equal(resolveDesktopProductName("0.1.1"), "T3 Code (Rakesh)");
+  assert.equal(
+    resolveDesktopBuildIconAssets("0.1.9").linuxIconPng,
+    "assets/rakesh/t3r-macos-1024.png",
+  );
   assert.equal(resolveDesktopProductName("0.1.2-nightly.20261021.1"), "T3 Code (Rakesh)");
 });
 

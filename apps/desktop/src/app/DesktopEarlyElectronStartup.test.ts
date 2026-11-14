@@ -3,6 +3,7 @@ import * as NodePath from "node:path";
 import { assert, describe, it } from "@effect/vitest";
 
 import {
+  resolveLinuxDesktopEntryName,
   restoreEarlyLinuxDeviceScaleFactor,
   resolveEarlyLinuxPasswordStorePreference,
   resolveLinuxDisableFeaturesSwitch,
@@ -10,6 +11,19 @@ import {
 
 describe("DesktopEarlyElectronStartup", () => {
   const joinPath = NodePath.posix.join;
+
+  it("keeps fork channel desktop identities separate", () => {
+    assert.equal(
+      resolveLinuxDesktopEntryName(false, "com.rakesh.t3code"),
+      "com.rakesh.t3code.stable.runtime.desktop",
+    );
+    assert.equal(
+      resolveLinuxDesktopEntryName(false, "com.rakesh.t3code.nightly"),
+      "com.rakesh.t3code.nightly.runtime.desktop",
+    );
+    assert.equal(resolveLinuxDesktopEntryName(false), "com.t3tools.T3Code.desktop");
+    assert.equal(resolveLinuxDesktopEntryName(true), "com.t3tools.T3Code.Development.desktop");
+  });
 
   it("reads the persisted linux password-store preference before Electron is ready", () => {
     const preference = resolveEarlyLinuxPasswordStorePreference({
