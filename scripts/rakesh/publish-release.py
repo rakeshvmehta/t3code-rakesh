@@ -10,6 +10,7 @@ import tempfile
 REPO='rakeshvmehta/t3code-rakesh'
 IDENTITY='Apple Development: rakeshvmehta@icloud.com (YJK8Y5SDNK)'
 TEAM='FFDV9VFWF5'
+CERTIFICATE_SHA1='346D432E7E4D31B75AFE533CB11B81584A9BBF6A'
 
 
 def release_tag(request):
@@ -38,7 +39,7 @@ def verify_signing(root,request):
                   'identity':IDENTITY,'team_id':TEAM,'codesign_verified':True,'notarized':False,'signing_mode':'approved-personal-development'}
         if any(receipt.get(k)!=v for k,v in expected.items()):raise ValueError('Mac signing evidence differs from approved candidate')
         value=receipt.get('certificate_sha1','')
-        if not re.fullmatch('[0-9A-F]{40}',value) or (fingerprint and value!=fingerprint):raise ValueError('Mac architectures have different signing identities')
+        if value!=CERTIFICATE_SHA1 or (fingerprint and value!=fingerprint):raise ValueError('Mac architectures have different signing identities')
         fingerprint=value
     return {'identity':IDENTITY,'team_id':TEAM,'certificate_sha1':fingerprint,'notarized':False}
 

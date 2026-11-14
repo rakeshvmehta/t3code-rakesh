@@ -7,7 +7,7 @@ spec=importlib.util.spec_from_file_location('publication',Path(__file__).with_na
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class PublicationTests(unittest.TestCase):
     def request(self):return {'channel':'stable','version':'0.1.12','candidate_sha':'a'*40,'run_id':123}
-    def evidence(self,arch):return {'arch':arch,'channel':'stable','version':'0.1.12','candidate_sha':'a'*40,'bundle_id':'com.rakesh.t3code','identity':m.IDENTITY,'team_id':m.TEAM,'certificate_sha1':'B'*40,'codesign_verified':True,'notarized':False,'signing_mode':'approved-personal-development'}
+    def evidence(self,arch):return {'arch':arch,'channel':'stable','version':'0.1.12','candidate_sha':'a'*40,'bundle_id':'com.rakesh.t3code','identity':m.IDENTITY,'team_id':m.TEAM,'certificate_sha1':m.CERTIFICATE_SHA1,'codesign_verified':True,'notarized':False,'signing_mode':'approved-personal-development'}
     def test_missing_mismatched_or_unsigned_mac_evidence_blocks_draft(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)

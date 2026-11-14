@@ -14,6 +14,7 @@ import urllib.parse
 
 IDENTITY='Apple Development: rakeshvmehta@icloud.com (YJK8Y5SDNK)'
 TEAM='FFDV9VFWF5'
+CERTIFICATE_SHA1='346D432E7E4D31B75AFE533CB11B81584A9BBF6A'
 
 
 def refresh_feed(data,root,version):
@@ -67,7 +68,7 @@ def main():
             run('security','set-key-partition-list','-S','apple-tool:,apple:,codesign:','-s','-k',keypass,str(keychain))
             identities=run('security','find-identity','-v','-p','codesigning',str(keychain))
             matches=re.findall(r'([0-9A-F]{40}) "'+re.escape(IDENTITY)+'"',identities)
-            if len(matches)!=1:raise ValueError('Approved development identity missing or ambiguous')
+            if matches!=[CERTIFICATE_SHA1]:raise ValueError('Approved development certificate fingerprint missing or ambiguous')
             p12.unlink()
             payload=temp/'payload';payload.mkdir()
             run('ditto','-x','-k',str(zips[0]),str(payload))
