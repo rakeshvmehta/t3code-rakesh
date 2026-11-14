@@ -8,7 +8,7 @@ import { EnvironmentId } from "@t3tools/contracts";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
 
-import { createThemeEnvironmentIdAtom } from "./primaryEnvironment";
+import { createPrimaryOrHostEnvironmentIdAtom } from "./primaryEnvironment";
 
 const PRIMARY = EnvironmentId.make("primary");
 const SERVICE = EnvironmentId.make("service");
@@ -19,7 +19,7 @@ function themeEnvironmentId(input: {
   host: string | null;
   catalog: ReadonlyArray<EnvironmentId>;
 }) {
-  const atom = createThemeEnvironmentIdAtom({
+  const atom = createPrimaryOrHostEnvironmentIdAtom({
     primaryEnvironmentIdAtom: Atom.make(input.primary),
     hostEnvironmentIdAtom: Atom.make(input.host),
     catalogValueAtom: Atom.make({ entries: new Map(input.catalog.map((id) => [id, null])) }),

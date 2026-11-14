@@ -18,8 +18,8 @@ export const hostEnvironmentIdAtom = Atom.make<string | null>(null).pipe(
   Atom.withLabel("web-host-environment-id"),
 );
 
-// Without a primary, only the service sharing the desktop app's T3 home supplies themes.
-export function createThemeEnvironmentIdAtom(input: {
+// State owned by this app uses its primary, or the connected service sharing its T3 home.
+export function createPrimaryOrHostEnvironmentIdAtom(input: {
   readonly primaryEnvironmentIdAtom: Atom.Atom<EnvironmentId | null>;
   readonly hostEnvironmentIdAtom: Atom.Atom<string | null>;
   readonly catalogValueAtom: Atom.Atom<{ readonly entries: ReadonlyMap<EnvironmentId, unknown> }>;
@@ -35,7 +35,7 @@ export function createThemeEnvironmentIdAtom(input: {
   }).pipe(Atom.withLabel("web-theme-environment-id"));
 }
 
-export const themeEnvironmentIdAtom = createThemeEnvironmentIdAtom({
+export const themeEnvironmentIdAtom = createPrimaryOrHostEnvironmentIdAtom({
   primaryEnvironmentIdAtom,
   hostEnvironmentIdAtom,
   catalogValueAtom: environmentCatalog.catalogValueAtom,
