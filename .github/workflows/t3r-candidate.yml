@@ -1,0 +1,244 @@
+name: T3-R candidate build
+"on":
+  push:
+    branches:
+      - ops/t3r-build/**
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: t3r-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      channel: ${{ steps.manifest.outputs.channel }}
+      version: ${{ steps.manifest.outputs.version }}
+      source_sha: ${{ steps.manifest.outputs.source_sha }}
+    steps:
+      - &id001
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          sparse-checkout: "/*
+
+            !/.repos/"
+          sparse-checkout-cone-mode: false
+      - id: manifest
+        run: python3 scripts/rakesh/release-manifest.py
+  bundle:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - *id001
+      - uses: ./.github/actions/setup-ci-deps
+      - name: Validate release boundaries
+        run: python3 scripts/rakesh/test_release_manifest.py
+      - name: Validate fork changes
+        env:
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: vp run check:changed "$SOURCE_SHA"
+      - name: Align version
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: node scripts/update-release-package-versions.ts "$VERSION"
+      - name: Build shared desktop bundle
+        run: vp run build:desktop:bundle
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: js-bundle
+          path: "apps/server/dist
+
+            apps/desktop/dist-electron"
+          if-no-files-found: error
+          retention-days: 7
+  linux_x64:
+    needs:
+      - prepare
+      - bundle
+    uses: ./.github/workflows/t3r-platform.yml
+    secrets: inherit
+    with:
+      label: Linux x64
+      runner: ubuntu-24.04
+      platform: linux
+      target: AppImage
+      arch: x64
+      rust_target: x86_64-unknown-linux-gnu
+      resource_key: linux-x64
+      cli_archive: true
+      launch_check: true
+      verify_runner: ""
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: ${{ needs.prepare.outputs.channel }}
+      relay_client_tracing: false
+      clerk_publishable_key: ""
+      clerk_jwt_template: ""
+      clerk_cli_oauth_client_id: ""
+      relay_url: ""
+  linux_arm64:
+    needs:
+      - prepare
+      - bundle
+    uses: ./.github/workflows/t3r-platform.yml
+    secrets: inherit
+    with:
+      label: Linux arm64
+      runner: ubuntu-24.04-arm
+      platform: linux
+      target: AppImage
+      arch: arm64
+      rust_target: aarch64-unknown-linux-gnu
+      resource_key: linux-arm64
+      cli_archive: true
+      launch_check: false
+      verify_runner: ""
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: ${{ needs.prepare.outputs.channel }}
+      relay_client_tracing: false
+      clerk_publishable_key: ""
+      clerk_jwt_template: ""
+      clerk_cli_oauth_client_id: ""
+      relay_url: ""
+  mac_arm64:
+    needs:
+      - prepare
+      - bundle
+    uses: ./.github/workflows/t3r-platform.yml
+    secrets: inherit
+    with:
+      label: macOS arm64
+      runner: macos-26
+      platform: mac
+      target: dmg
+      arch: arm64
+      rust_target: aarch64-apple-darwin
+      resource_key: darwin-arm64
+      cli_archive: true
+      launch_check: true
+      verify_runner: ""
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: ${{ needs.prepare.outputs.channel }}
+      relay_client_tracing: false
+      clerk_publishable_key: ""
+      clerk_jwt_template: ""
+      clerk_cli_oauth_client_id: ""
+      relay_url: ""
+  mac_x64:
+    needs:
+      - prepare
+      - bundle
+    uses: ./.github/workflows/t3r-platform.yml
+    secrets: inherit
+    with:
+      label: macOS x64
+      runner: macos-26-intel
+      platform: mac
+      target: dmg
+      arch: x64
+      rust_target: x86_64-apple-darwin
+      resource_key: darwin-x64
+      cli_archive: false
+      launch_check: false
+      verify_runner: ""
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: ${{ needs.prepare.outputs.channel }}
+      relay_client_tracing: false
+      clerk_publishable_key: ""
+      clerk_jwt_template: ""
+      clerk_cli_oauth_client_id: ""
+      relay_url: ""
+  win_x64:
+    needs:
+      - prepare
+      - bundle
+    uses: ./.github/workflows/t3r-platform.yml
+    secrets: inherit
+    with:
+      label: Windows x64
+      runner: ubuntu-24.04
+      platform: win
+      target: nsis
+      arch: x64
+      rust_target: x86_64-pc-windows-msvc
+      resource_key: win32-x64
+      cli_archive: true
+      launch_check: false
+      verify_runner: windows-2025
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: ${{ needs.prepare.outputs.channel }}
+      relay_client_tracing: false
+      clerk_publishable_key: ""
+      clerk_jwt_template: ""
+      clerk_cli_oauth_client_id: ""
+      relay_url: ""
+  win_arm64:
+    needs:
+      - prepare
+      - bundle
+    uses: ./.github/workflows/t3r-platform.yml
+    secrets: inherit
+    with:
+      label: Windows arm64
+      runner: ubuntu-24.04
+      platform: win
+      target: nsis
+      arch: arm64
+      rust_target: aarch64-pc-windows-msvc
+      resource_key: win32-arm64
+      cli_archive: true
+      launch_check: false
+      verify_runner: windows-11-arm
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: ${{ needs.prepare.outputs.channel }}
+      relay_client_tracing: false
+      clerk_publishable_key: ""
+      clerk_jwt_template: ""
+      clerk_cli_oauth_client_id: ""
+      relay_url: ""
+  verified:
+    needs:
+      - prepare
+      - linux_x64
+      - linux_arm64
+      - mac_arm64
+      - mac_x64
+      - win_x64
+      - win_arm64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Record build outcome
+        env:
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: "python3 - <<'PYTHON'
+
+          import json, os
+
+          receipt={k:os.environ[k] for k in ('CHANNEL','VERSION','SOURCE_SHA','GITHUB_SHA','GITHUB_RUN_ID')}
+
+          receipt.update(platform_builds='passed', published=False, cutover_status='NOT_READY')
+
+          with open('build-receipt.json','w') as f: json.dump(receipt,f,indent=2)
+
+          PYTHON"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: build-receipt
+          path: build-receipt.json
+          if-no-files-found: error
+          retention-days: 30
