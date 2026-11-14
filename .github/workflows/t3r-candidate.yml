@@ -17,6 +17,7 @@ jobs:
       channel: ${{ steps.manifest.outputs.channel }}
       version: ${{ steps.manifest.outputs.version }}
       source_sha: ${{ steps.manifest.outputs.source_sha }}
+      validation_base_sha: ${{ steps.manifest.outputs.validation_base_sha }}
     steps:
       - &id001
         name: Checkout candidate
@@ -51,7 +52,7 @@ jobs:
           python3 scripts/rakesh/test_development_signing.py"
       - name: Validate fork changes
         env:
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.validation_base_sha }}
         run: vp run check:changed "$SOURCE_SHA"
       - name: Align version
         env:
