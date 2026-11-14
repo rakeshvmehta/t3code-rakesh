@@ -2736,6 +2736,13 @@ export function resolveDesktopWebAssetBrand(version: string): WebAssetBrand {
 }
 
 export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIconAssets {
+  if (resolveDesktopAppId() === "com.rakesh.t3code") {
+    return {
+      macIconPng: "assets/rakesh/t3r-macos-1024.png",
+      linuxIconPng: "assets/rakesh/t3r-macos-1024.png",
+      windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
+    };
+  }
   if (resolveDesktopAppId() === "com.rakesh.t3code.nightly") {
     return {
       macIconPng: "assets/rakesh/nightly/icon-1024.png",
