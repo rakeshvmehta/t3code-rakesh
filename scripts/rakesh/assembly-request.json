@@ -1,0 +1,7 @@
+{
+  "run_id": 43563163023,
+  "candidate_sha": "3d375cf946827734622f8155378afb8e1c4945b9",
+  "source_sha": "1b73a3fec198f63b5ca36a1d4bb68ee6b4fd5d21",
+  "channel": "nightly",
+  "version": "0.1.11-nightly.20261114.1"
+}
