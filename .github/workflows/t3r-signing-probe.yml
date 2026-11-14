@@ -1,0 +1,52 @@
+name: T3-R isolated Mac signing probe
+"on":
+  push:
+    branches:
+      - ops/t3r-signing-probe/**
+permissions:
+  contents: read
+  actions: read
+jobs:
+  probe:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - name: Checkout assembly tooling
+        shell: bash
+        run: 'set -euo pipefail
+
+          git init .
+
+          git remote add origin https://github.com/rakeshvmehta/t3code-rakesh.git
+
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+
+          git sparse-checkout set --no-cone ''/*'' ''!/.repos/''
+
+          git checkout --detach FETCH_HEAD'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: desktop-mac-arm64
+          run-id: 43563159573
+          github-token: ${{ github.token }}
+          path: release
+      - name: Sign Mac artifacts with approved development identity
+        shell: bash
+        env:
+          T3R_MAC_DEVELOPMENT_P12: ${{ secrets.T3R_MAC_DEVELOPMENT_P12 }}
+          T3R_MAC_DEVELOPMENT_PASSWORD: ${{ secrets.T3R_MAC_DEVELOPMENT_PASSWORD }}
+          VERSION: 0.1.10
+          CHANNEL: stable
+          ARCH: arm64
+        run: 'set -euo pipefail
+
+          [[ -n "$T3R_MAC_DEVELOPMENT_P12" && -n "$T3R_MAC_DEVELOPMENT_PASSWORD" ]] || { echo "Approved development
+          signing credentials are required." >&2; exit 1; }
+
+          python3 -m pip install --disable-pip-version-check --target "$RUNNER_TEMP/signing-python" PyYAML==6.0.3
+
+          export PYTHONPATH="$RUNNER_TEMP/signing-python"
+
+          python3 scripts/rakesh/sign-mac-development.py --version "$VERSION" --channel "$CHANNEL" --arch "$ARCH"
+
+          '

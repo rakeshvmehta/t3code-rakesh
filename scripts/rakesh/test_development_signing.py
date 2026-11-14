@@ -7,6 +7,15 @@ import unittest
 spec=importlib.util.spec_from_file_location('signing',Path(__file__).with_name('sign-mac-development.py'))
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class SigningTests(unittest.TestCase):
+    def test_codesign_errors_are_diagnostic_but_keychain_commands_stay_redacted(self):
+        from unittest.mock import patch
+        import subprocess
+        error=subprocess.CompletedProcess([],1,stdout=b'',stderr=b'errSecInternalComponent')
+        with patch.object(m.subprocess,'run',return_value=error):
+            with self.assertRaisesRegex(RuntimeError,'errSecInternalComponent'):m.run('codesign','--sign','public-fingerprint','app')
+            with self.assertRaises(RuntimeError) as raised:m.run('security','import','file','-P','secret')
+            self.assertNotIn('errSecInternalComponent',str(raised.exception))
+            self.assertNotIn('secret',str(raised.exception))
     def test_regenerates_feed_after_signing_and_drops_stale_blockmap(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);(root/'app.zip').write_bytes(b'signed zip');(root/'app.dmg').write_bytes(b'signed dmg')

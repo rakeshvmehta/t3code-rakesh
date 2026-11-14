@@ -40,7 +40,9 @@ def refresh_feed(data,root,version):
 def run(*args):
     # Never include command arguments in exceptions: security commands contain passwords.
     process=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-    if process.returncode:raise RuntimeError(f'{Path(args[0]).name} failed with exit {process.returncode}')
+    if process.returncode:
+        detail=process.stderr.decode(errors='replace')[-4000:] if args[0] in ('codesign','hdiutil') else ''
+        raise RuntimeError(f'{Path(args[0]).name} failed with exit {process.returncode}: {detail}')
     return process.stdout.decode()
 
 
