@@ -46,7 +46,9 @@ jobs:
       - *id001
       - uses: ./.github/actions/setup-ci-deps
       - name: Validate release boundaries
-        run: python3 scripts/rakesh/test_release_manifest.py
+        run: "python3 scripts/rakesh/test_release_manifest.py
+
+          python3 scripts/rakesh/test_development_signing.py"
       - name: Validate fork changes
         env:
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
@@ -155,7 +157,7 @@ jobs:
       rust_target: x86_64-apple-darwin
       resource_key: darwin-x64
       cli_archive: false
-      launch_check: false
+      launch_check: true
       verify_runner: ""
       version: ${{ needs.prepare.outputs.version }}
       ref: ${{ github.sha }}

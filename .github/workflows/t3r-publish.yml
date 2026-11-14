@@ -1,0 +1,122 @@
+name: T3-R verified draft release
+"on":
+  push:
+    branches:
+      - ops/t3r-publish/**
+permissions:
+  contents: write
+  actions: read
+jobs:
+  assemble:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout assembly tooling
+        shell: bash
+        run: 'set -euo pipefail
+
+          git init .
+
+          git remote add origin https://github.com/rakeshvmehta/t3code-rakesh.git
+
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+
+          git sparse-checkout set --no-cone ''/*'' ''!/.repos/''
+
+          git checkout --detach FETCH_HEAD'
+      - name: Verify original build identity
+        id: request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run:
+          "python3 - <<'PYTHON'\nimport json, subprocess, re, base64, os\nfrom pathlib import Path\nrequest=json.loads(Path('scripts/rakesh/assembly-request.json').read_text())\n\
+          assert request['channel'] in ('stable','nightly')\nassert type(request['run_id']) is int and request['run_id']>0\n\
+          assert re.fullmatch('[0-9a-f]{40}',request['candidate_sha'])\nrepo='repos/rakeshvmehta/t3code-rakesh/'\nread=lambda\
+          \ endpoint:json.loads(subprocess.check_output(['gh','api',repo+endpoint]))\nrun=read('actions/runs/'+str(request['run_id']))\n\
+          assert run['conclusion']=='success' and run['head_sha']==request['candidate_sha'] and run['path']=='.github/workflows/t3r-candidate.yml'\n\
+          content=read('contents/scripts/rakesh/release-candidate.json?ref='+request['candidate_sha'])\noriginal=json.loads(base64.b64decode(content['content']))\n\
+          assert all(original[k]==request[k] for k in ('channel','version','source_sha'))\npattern=r'(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\\
+          .(0|[1-9][0-9]*)'+(r'-nightly\\.[0-9]{8}\\.[1-9][0-9]*' if request['channel']=='nightly' else '')\nassert re.fullmatch(pattern,request['version'])\n\
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:\n for k in ('run_id','channel','version'):f.write(f'{k}={request[k]}\\\
+          n')\nPYTHON"
+      - uses: ./.github/actions/setup-ci-deps
+        with:
+          install-args: --filter=@t3tools/scripts...
+      - name: Install YAML parser
+        run: python3 -m pip install --disable-pip-version-check --target "$RUNNER_TEMP/assembly-python" PyYAML==6.0.3
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: desktop-mac-x64
+          run-id: ${{ steps.request.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: downloaded/desktop-mac-x64
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: desktop-mac-arm64
+          run-id: ${{ steps.request.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: downloaded/desktop-mac-arm64
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: desktop-linux-x64
+          run-id: ${{ steps.request.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: downloaded/desktop-linux-x64
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: desktop-linux-arm64
+          run-id: ${{ steps.request.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: downloaded/desktop-linux-arm64
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: desktop-win-x64
+          run-id: ${{ steps.request.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: downloaded/desktop-win-x64
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: desktop-win-arm64
+          run-id: ${{ steps.request.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: downloaded/desktop-win-arm64
+      - name: Assemble and verify all feeds
+        env:
+          CHANNEL: ${{ steps.request.outputs.channel }}
+          VERSION: ${{ steps.request.outputs.version }}
+        shell: bash
+        run:
+          "set -euo pipefail\nexport PYTHONPATH=\"$RUNNER_TEMP/assembly-python\"\npython3 - <<'PYTHON'\nfrom pathlib import\
+          \ Path\nimport shutil\nout=Path('release-assets');out.mkdir()\nfor folder in Path('downloaded').iterdir():\n for file\
+          \ in folder.iterdir():\n  if file.name in ('builder-debug.yml','builder-effective-config.yaml'):continue\n  assert\
+          \ file.is_file() and not file.is_symlink()\n  dest=out/file.name\n  if dest.exists():assert dest.read_bytes()==file.read_bytes(),\
+          \ 'Conflicting platform filenames'\n  else:shutil.copyfile(file,dest)\nPYTHON\nprefix=latest\nif [[ \"$CHANNEL\" ==\
+          \ nightly ]]; then prefix=nightly; fi\nnode scripts/merge-update-manifests.ts --platform mac \"release-assets/$prefix-mac.yml\"\
+          \ \"release-assets/$prefix-mac-x64.yml\"\nrm \"release-assets/$prefix-mac-x64.yml\"\nnode scripts/merge-update-manifests.ts\
+          \ --platform win \"release-assets/$prefix-win-x64.yml\" \"release-assets/$prefix-win-arm64.yml\" \"release-assets/$prefix.yml\"\
+          \nrm \"release-assets/$prefix-win-x64.yml\" \"release-assets/$prefix-win-arm64.yml\"\npython3 scripts/rakesh/verify-release-assets.py\
+          \ release-assets --channel \"$CHANNEL\" --version \"$VERSION\"\ncp scripts/rakesh/assembly-request.json release-assets/source-build.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: verified-update-feeds
+          path: "release-assets/*.yml
+
+            release-assets/*.json"
+          retention-days: 7
+          if-no-files-found: error
+      - name: Create verified draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONPATH: ${{ runner.temp }}/assembly-python
+        run: "python3 scripts/rakesh/test_release_publication.py
+
+          python3 scripts/rakesh/publish-release.py release-assets scripts/rakesh/assembly-request.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: draft-publication-receipt
+          path: draft-publication-receipt.json
+          retention-days: 30
+          if-no-files-found: error
+concurrency:
+  group: t3r-draft-publication
+  cancel-in-progress: false

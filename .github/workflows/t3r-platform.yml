@@ -9,6 +9,10 @@ name: T3-R platform build
 on:
   workflow_call:
     secrets:
+      T3R_MAC_DEVELOPMENT_P12:
+        required: false
+      T3R_MAC_DEVELOPMENT_PASSWORD:
+        required: false
       CSC_LINK:
         required: false
       CSC_KEY_PASSWORD:
@@ -659,6 +663,28 @@ jobs:
 
           vp run dist:desktop:artifact "${args[@]}"
 
+      - name: Sign Mac artifacts with approved development identity
+        if: inputs.platform == 'mac'
+        shell: bash
+        env:
+          T3R_MAC_DEVELOPMENT_P12: ${{ secrets.T3R_MAC_DEVELOPMENT_P12 }}
+          T3R_MAC_DEVELOPMENT_PASSWORD: ${{ secrets.T3R_MAC_DEVELOPMENT_PASSWORD }}
+          VERSION: ${{ inputs.version }}
+          CHANNEL: ${{ inputs.release_channel }}
+          ARCH: ${{ inputs.arch }}
+        run: 'set -euo pipefail
+
+          [[ -n "$T3R_MAC_DEVELOPMENT_P12" && -n "$T3R_MAC_DEVELOPMENT_PASSWORD" ]] || { echo "Approved development signing
+          credentials are required." >&2; exit 1; }
+
+          python3 -m pip install --disable-pip-version-check --target "$RUNNER_TEMP/signing-python" PyYAML==6.0.3
+
+          export PYTHONPATH="$RUNNER_TEMP/signing-python"
+
+          python3 scripts/rakesh/sign-mac-development.py --version "$VERSION" --channel "$CHANNEL" --arch "$ARCH"
+
+          '
+
       # The CLI was submitted without waiting so Apple reviews it while the
       # desktop builds. Notarization does not change the archive bytes, but
       # nothing uploads them, so nothing publishes them, until Apple accepts.
@@ -784,6 +810,7 @@ jobs:
             "release/*.AppImage"
             "release/*.deb"
             "release/*.exe"
+            "release/mac-signing-*.json"
           )
           # Preview builds have no publish config, so electron-builder writes
           # no feed manifest for them, but it still emits blockmaps beside the
