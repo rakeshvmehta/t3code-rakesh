@@ -5,17 +5,17 @@ import { runAtomCommand } from "@t3tools/client-runtime/state/runtime";
 import { useContext } from "react";
 
 import { environmentCatalog } from "../../connection/catalog";
-import { primaryEnvironmentIdAtom } from "../primaryEnvironment";
 import { threadEnvironmentForKey } from "./logic";
 import {
   mutateOrganization,
+  organizationEnvironmentIdAtom,
   organizationSnapshotsAtom,
   writableOrganizationEnvironmentsAtom,
 } from "./state";
 
 export function useOrganizationActions() {
   const registry = useContext(RegistryContext);
-  const primary = useAtomValue(primaryEnvironmentIdAtom);
+  const primary = useAtomValue(organizationEnvironmentIdAtom);
   const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
   const snapshots = useAtomValue(organizationSnapshotsAtom);
   const writable = useAtomValue(writableOrganizationEnvironmentsAtom);

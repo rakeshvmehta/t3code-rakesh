@@ -15,13 +15,13 @@ import {
 } from "../../components/sidebarSections/sidebarSections.logic";
 import { subscribeLocalStorageKey, useLocalStorage } from "../../hooks/useLocalStorage";
 import { randomUUID } from "../../lib/utils";
-import { primaryEnvironmentIdAtom } from "../primaryEnvironment";
 import { buildLegacyImport } from "./logic";
 import { createOrganizationRetryQueue } from "./retry";
 import {
   cacheOrganizationPeer,
   importOrganization,
   legacyOrganizationAtom,
+  organizationEnvironmentIdAtom,
   organizationSnapshotsAtom,
   writableOrganizationEnvironmentsAtom,
 } from "./state";
@@ -57,7 +57,7 @@ const notesSource = legacySource(THREAD_NOTES_STORAGE_KEY, (raw) =>
 
 export function useOrganizationSync() {
   const registry = useContext(RegistryContext);
-  const primary = useAtomValue(primaryEnvironmentIdAtom);
+  const primary = useAtomValue(organizationEnvironmentIdAtom);
   const snapshots = useAtomValue(organizationSnapshotsAtom);
   const writable = useAtomValue(writableOrganizationEnvironmentsAtom);
   const sections = useSyncExternalStore(

@@ -20,7 +20,11 @@ import {
   SIDEBAR_SECTIONS_STORAGE_KEY,
   SidebarSectionsStateSchema,
 } from "../../components/sidebarSections/sidebarSections.logic";
-import { primaryEnvironmentIdAtom } from "../primaryEnvironment";
+import {
+  createPrimaryOrHostEnvironmentIdAtom,
+  hostEnvironmentIdAtom,
+  primaryEnvironmentIdAtom,
+} from "../primaryEnvironment";
 import { serverEnvironment } from "../server";
 import { buildLegacyImport, composeOrganizationView } from "./logic";
 
@@ -105,8 +109,14 @@ export const writableOrganizationEnvironmentsAtom = Atom.make((get) => {
 
 export const legacyOrganizationAtom = Atom.make(readLegacyOrganization());
 
+export const organizationEnvironmentIdAtom = createPrimaryOrHostEnvironmentIdAtom({
+  primaryEnvironmentIdAtom,
+  hostEnvironmentIdAtom,
+  catalogValueAtom: environmentCatalog.catalogValueAtom,
+});
+
 export const organizationViewAtom = Atom.make((get) => {
-  const primary = get(primaryEnvironmentIdAtom) ?? "";
+  const primary = get(organizationEnvironmentIdAtom) ?? "";
   const all = get(organizationSnapshotsAtom);
   const legacy = get(legacyOrganizationAtom);
   return composeOrganizationView(
