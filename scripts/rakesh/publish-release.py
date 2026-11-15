@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 
@@ -32,8 +33,8 @@ def verify_tag_target(output,request):
 def release_body(request):
     tag=release_tag(request)
     return (f"T3-R {request['channel']} {request['version']}\n\n"
-            "macOS: signed with the approved personal Apple Development identity; NOT notarized.\n"
-            "Windows: unsigned. Linux: checksum-verified artifacts.\n\n"
+            "macOS desktop: signed with the approved personal Apple Development identity; NOT notarized.\n"
+            "macOS standalone CLI: ad-hoc signed; NOT notarized. Windows: unsigned. Linux: checksum-verified artifacts.\n\n"
             f"Build: https://github.com/{REPO}/actions/runs/{request['run_id']}\n"
             f"<!-- t3r-controller:{tag}:{request['candidate_sha']} -->\n")
 
@@ -67,15 +68,63 @@ def api(endpoint,payload=None):
     return json.loads(subprocess.check_output(['gh',*args,'--input','-'],input=json.dumps(payload).encode()))
 
 
+def sha256(path):
+    with path.open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
+
+
+def cli_names(version):
+    return {f't3-{version}-{platform}.{extension}' for platform,extension in (
+        ('darwin-arm64','tar.gz'),('linux-x64','tar.gz'),('linux-arm64','tar.gz'),
+        ('win32-x64','zip'),('win32-arm64','zip'))}
+
+
+def stage_cli(source,root,request):
+    expected=cli_names(request['version'])
+    files=list(source.iterdir())
+    if {p.name for p in files}!=expected or any(p.is_symlink() or not p.is_file() or p.stat().st_size==0 for p in files):
+        raise ValueError('Standalone artifacts must match the exact five native build outputs')
+    for path in files:
+        target=root/path.name
+        if target.exists():raise ValueError('Standalone staging destination already exists')
+        shutil.copyfile(path,target)
+    (root/'SHA256SUMS').write_text(''.join(
+        sha256(root/name)+'  '+name+'\n'
+        for name in sorted(expected)))
+
+
+def release_assets(root,request):
+    expected=cli_names(request['version'])
+    entries={}
+    for line in (root/'SHA256SUMS').read_text().splitlines():
+        match=re.fullmatch(r'([0-9a-f]{64})  ([^/\\]+)',line)
+        if not match or match[2] in entries:raise ValueError('Invalid or duplicate standalone checksum entry')
+        entries[match[2]]=match[1]
+    if set(entries)!=expected:raise ValueError('Missing or foreign standalone archive checksum')
+    for name,digest in entries.items():
+        path=root/name
+        if path.is_symlink() or not path.is_file() or path.stat().st_size==0 or sha256(path)!=digest:
+            raise ValueError('Standalone archive checksum mismatch')
+    assets=[]
+    for path in root.iterdir():
+        if path.is_symlink() or not path.is_file():raise ValueError('Unexpected release asset type')
+        if path.name.startswith('t3-') and path.name not in expected:raise ValueError('Foreign standalone archive')
+        if path.name in expected or path.name=='SHA256SUMS' or path.suffix in ('.zip','.dmg','.exe','.deb','.AppImage','.yml','.blockmap','.json'):
+            assets.append(path)
+    return assets
+
+
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('directory',type=Path);parser.add_argument('request',type=Path)
+    parser=argparse.ArgumentParser();parser.add_argument('directory',type=Path);parser.add_argument('request',type=Path);parser.add_argument('--cli-directory',type=Path)
     args=parser.parse_args();request=json.loads(args.request.read_text());root=args.directory
     tag=release_tag(request);signing=verify_signing(root,request)
+    if args.cli_directory:stage_cli(args.cli_directory,root,request)
+    release_assets(root,request)
     refs=subprocess.check_output(['git','ls-remote','--tags',f'https://github.com/{REPO}.git',f'refs/tags/{tag}',f'refs/tags/{tag}^{{}}']).decode()
     verify_tag_target(refs,request)
     # Independently rerun checksum validation immediately before creating/uploading the draft.
     subprocess.run(['python3',str(Path(__file__).with_name('verify-release-assets.py')),str(root),
                     '--channel',request['channel'],'--version',request['version']],check=True)
+    assets=release_assets(root,request)
     pages=json.loads(gh('api','--paginate','--slurp',f'repos/{REPO}/releases?per_page=100'))
     matches=[r for page in pages for r in page if r['tag_name']==tag]
     if len(matches)>1:raise ValueError('Duplicate releases for candidate tag')
@@ -84,8 +133,8 @@ def main():
         release=api('releases',{'tag_name':tag,'target_commitish':request['candidate_sha'],
                     'name':f"T3-R {request['channel']} {request['version']}",'body':release_body(request),
                     'draft':True,'prerelease':request['channel']=='nightly','make_latest':'false'})
-    rid=release['id'];assets=[p for p in root.iterdir() if p.is_file() and not p.is_symlink() and p.suffix in ('.zip','.dmg','.exe','.deb','.AppImage','.yml','.blockmap','.json')]
-    expected={p.name:{'size':p.stat().st_size,'digest':'sha256:'+hashlib.file_digest(p.open('rb'),'sha256').hexdigest()} for p in assets}
+    rid=release['id']
+    expected={p.name:{'size':p.stat().st_size,'digest':'sha256:'+sha256(p)} for p in assets}
     remote=api(f'releases/{rid}/assets?per_page=100')
     if any(a['name'] not in expected for a in remote):raise ValueError('Draft contains foreign assets')
     existing={a['name']:a for a in remote}

@@ -23,6 +23,33 @@ class PublicationTests(unittest.TestCase):
         m.verify_existing(release,request)
         for bad in ({'draft':False},{'body':'someone else release'},{'target_commitish':'main'},{'tag_name':'v0.1.13'}):
             with self.assertRaises(ValueError):m.verify_existing({**release,**bad},request)
+    def test_standalone_archives_and_checksums_are_published_and_tampering_rejected(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);version='0.1.12'
+            names=[f't3-{version}-{platform}.{extension}' for platform,extension in [('darwin-arm64','tar.gz'),('linux-x64','tar.gz'),('linux-arm64','tar.gz'),('win32-x64','zip'),('win32-arm64','zip')]]
+            for name in names:(root/name).write_bytes(b'verified native artifact')
+            (root/'SHA256SUMS').write_text(''.join(hashlib.sha256((root/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in names))
+            selected={p.name for p in m.release_assets(root,self.request())}
+            self.assertEqual(selected,set(names)|{'SHA256SUMS'})
+            (root/names[0]).write_bytes(b'changed')
+            with self.assertRaises(ValueError):m.release_assets(root,self.request())
+            (root/'SHA256SUMS').unlink()
+            with self.assertRaises((ValueError,FileNotFoundError)):m.release_assets(root,self.request())
+
+    def test_staging_rejects_missing_or_foreign_outputs_and_preserves_checksums(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);source=root/'input';out=root/'output';source.mkdir();out.mkdir()
+            with self.assertRaises(ValueError):m.stage_cli(source,out,self.request())
+            names=['t3-0.1.12-darwin-arm64.tar.gz','t3-0.1.12-linux-x64.tar.gz','t3-0.1.12-linux-arm64.tar.gz','t3-0.1.12-win32-x64.zip','t3-0.1.12-win32-arm64.zip']
+            for name in names:(source/name).write_bytes(name.encode())
+            (source/'foreign').write_bytes(b'x')
+            with self.assertRaises(ValueError):m.stage_cli(source,out,self.request())
+            self.assertEqual(list(out.iterdir()),[])
+            (source/'foreign').unlink();m.stage_cli(source,out,self.request())
+            self.assertEqual({p.name for p in m.release_assets(out,self.request())},set(names)|{'SHA256SUMS'})
+            for name in names:self.assertEqual((source/name).read_bytes(),(out/name).read_bytes())
+
     def test_plain_tags_and_existing_tag_collisions(self):
         request=self.request();self.assertEqual(m.release_tag(request),'v0.1.12')
         m.verify_tag_target('',request)
