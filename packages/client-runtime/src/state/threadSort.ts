@@ -1,14 +1,9 @@
-import {
-  orderKeyBetween as pinOrderKeyBetween,
-  spreadOrderKeys as generateSpreadPinOrderKeys,
-} from "@t3tools/shared/orderKey";
-export {
-  orderKeyBetween as pinOrderKeyBetween,
-  spreadOrderKeys as generateSpreadPinOrderKeys,
-} from "@t3tools/shared/orderKey";
 import type { ProjectId } from "@t3tools/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import { generateSpreadPinOrderKeys, pinOrderKeyBetween } from "@t3tools/shared/pinOrderKey";
 import type { EnvironmentThreadShell } from "./models.ts";
+
+export { generateSpreadPinOrderKeys, pinOrderKeyBetween } from "@t3tools/shared/pinOrderKey";
 
 export interface ThreadSortInput {
   readonly createdAt: string;
