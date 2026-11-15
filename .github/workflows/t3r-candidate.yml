@@ -50,6 +50,8 @@ jobs:
         run: "python3 scripts/rakesh/test_release_manifest.py
 
           python3 scripts/rakesh/test_development_signing.py"
+      - name: Install Chromium for fork browser tests
+        run: node apps/web/node_modules/playwright/cli.js install --with-deps --only-shell chromium
       - name: Validate fork changes
         env:
           SOURCE_SHA: ${{ needs.prepare.outputs.validation_base_sha }}
