@@ -55,6 +55,22 @@ def run(*args):
     return process.stdout.decode()
 
 
+def create_dmg(payload,target,version):
+    import time
+    for attempt in range(3):
+        candidate=target.with_name(f'{target.stem}-attempt-{attempt+1}.dmg')
+        try:
+            run('hdiutil','create','-volname',f'T3-R {version}','-srcfolder',str(payload),'-format','UDZO',str(candidate))
+        except RuntimeError as error:
+            if 'resource busy' not in str(error).lower() or attempt==2:raise
+            if candidate.is_file():candidate.unlink()
+            time.sleep(2**(attempt+1))
+            continue
+        run('hdiutil','verify',str(candidate))
+        candidate.replace(target)
+        return
+
+
 def main():
     import yaml
     parser=argparse.ArgumentParser();parser.add_argument('--version',required=True)
@@ -103,7 +119,7 @@ def main():
             newzip=temp/'signed.zip';run('ditto','-c','-k','--sequesterRsrc','--keepParent',str(app),str(newzip))
             (payload/'Applications').symlink_to('/Applications')
             newdmg=temp/'signed.dmg'
-            run('hdiutil','create','-volname',f'T3-R {args.version}','-srcfolder',str(payload),'-ov','-format','UDZO',str(newdmg))
+            create_dmg(payload,newdmg,args.version)
             newzip.replace(zips[0]);newdmg.replace(dmgs[0])
             feed.write_text(dump_feed(refresh_feed(original,root,args.version)))
             for stale in root.glob('*.blockmap'):stale.unlink()

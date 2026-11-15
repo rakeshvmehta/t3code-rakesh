@@ -29,4 +29,27 @@ class SigningTests(unittest.TestCase):
             for name in ('../app.zip','https://elsewhere/app.zip','app.exe'):
                 with self.assertRaises(ValueError):m.refresh_feed({'version':'0.1.12','files':[{'url':name}]},Path(d),'0.1.12')
             with self.assertRaises(ValueError):m.refresh_feed({'version':'0.1.11','files':[]},Path(d),'0.1.12')
+
+class DmgRetryTests(unittest.TestCase):
+    def test_resource_busy_retries_and_verifies_before_return(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d:
+            target=Path(d)/'signed.dmg';calls=[]
+            def run(*args):
+                calls.append(args)
+                if args[1]=='create':
+                    if len([x for x in calls if x[1]=='create'])==1:raise RuntimeError('hdiutil failed with exit 1: Resource busy')
+                    Path(args[-1]).write_bytes(b'dmg')
+                return ''
+            with patch.object(m,'run',side_effect=run),patch('time.sleep'):
+                m.create_dmg(Path(d)/'payload',target,'1.2.3')
+            self.assertEqual(target.read_bytes(),b'dmg')
+            self.assertEqual([x[1] for x in calls],['create','create','verify'])
+    def test_other_failures_not_retried_and_busy_retry_is_bounded(self):
+        from unittest.mock import patch
+        for message,count in [('permission denied',1),('Resource busy',3)]:
+            with tempfile.TemporaryDirectory() as d,patch.object(m,'run',side_effect=RuntimeError(message)) as run,patch('time.sleep'):
+                with self.assertRaises(RuntimeError):m.create_dmg(Path(d)/'payload',Path(d)/'signed.dmg','1.2.3')
+                self.assertEqual(run.call_count,count)
+
 if __name__=='__main__':unittest.main()
