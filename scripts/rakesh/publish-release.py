@@ -18,7 +18,15 @@ def release_tag(request):
     if request['channel']=='nightly':pattern+=r'-nightly\.[0-9]{8}\.[1-9][0-9]*'
     if request['channel'] not in ('stable','nightly') or not re.fullmatch(pattern,version):raise ValueError('Invalid release version')
     if type(request['run_id']) is not int or request['run_id']<1 or not re.fullmatch('[0-9a-f]{40}',request['candidate_sha']):raise ValueError('Invalid build identity')
-    return f"v{version}+t3r.{request['run_id']}"
+    return f"v{version}"
+
+
+def verify_tag_target(output,request):
+    tag='refs/tags/'+release_tag(request)
+    refs={parts[1]:parts[0] for line in output.splitlines() if len(parts:=line.split())==2}
+    target=refs.get(tag+'^{}',refs.get(tag))
+    if target is not None and target!=request['candidate_sha']:
+        raise ValueError('Version tag already belongs to another source; refusing overwrite')
 
 
 def release_body(request):
@@ -63,6 +71,8 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('directory',type=Path);parser.add_argument('request',type=Path)
     args=parser.parse_args();request=json.loads(args.request.read_text());root=args.directory
     tag=release_tag(request);signing=verify_signing(root,request)
+    refs=subprocess.check_output(['git','ls-remote','--tags',f'https://github.com/{REPO}.git',f'refs/tags/{tag}',f'refs/tags/{tag}^{{}}']).decode()
+    verify_tag_target(refs,request)
     # Independently rerun checksum validation immediately before creating/uploading the draft.
     subprocess.run(['python3',str(Path(__file__).with_name('verify-release-assets.py')),str(root),
                     '--channel',request['channel'],'--version',request['version']],check=True)

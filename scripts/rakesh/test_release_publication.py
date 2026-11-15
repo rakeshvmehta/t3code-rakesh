@@ -21,6 +21,12 @@ class PublicationTests(unittest.TestCase):
         request=self.request();body=m.release_body(request)
         release={'draft':True,'tag_name':m.release_tag(request),'target_commitish':request['candidate_sha'],'body':body}
         m.verify_existing(release,request)
-        for bad in ({'draft':False},{'body':'someone else release'},{'target_commitish':'main'},{'tag_name':'v0.1.12'}):
+        for bad in ({'draft':False},{'body':'someone else release'},{'target_commitish':'main'},{'tag_name':'v0.1.13'}):
             with self.assertRaises(ValueError):m.verify_existing({**release,**bad},request)
+    def test_plain_tags_and_existing_tag_collisions(self):
+        request=self.request();self.assertEqual(m.release_tag(request),'v0.1.12')
+        m.verify_tag_target('',request)
+        m.verify_tag_target('a'*40+'\trefs/tags/v0.1.12\n',request)
+        m.verify_tag_target('b'*40+'\trefs/tags/v0.1.12\n'+'a'*40+'\trefs/tags/v0.1.12^{}\n',request)
+        with self.assertRaises(ValueError):m.verify_tag_target('b'*40+'\trefs/tags/v0.1.12\n',request)
 if __name__=='__main__':unittest.main()
