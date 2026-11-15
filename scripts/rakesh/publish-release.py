@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -147,7 +148,8 @@ def main():
     received={a['name']:{k:a.get(k) for k in ('size','digest')} for a in api(f'releases/{rid}/assets?per_page=100')}
     if received!=expected:raise ValueError('Uploaded draft asset readback mismatch')
     receipt={'release_id':rid,'tag':tag,'candidate_sha':request['candidate_sha'],'run_id':request['run_id'],
-             'draft':True,'published':False,'signing':signing,'assets':expected,'cutover_status':'NOT_READY'}
+             'draft':True,'published':False,'signing':signing,'assets':expected,'cutover_status':'NOT_READY',
+             'publication_tooling_sha':os.environ['GITHUB_SHA']}
     Path('draft-publication-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
 
 
