@@ -7,6 +7,12 @@ spec.loader.exec_module(m)
 class ManifestTests(unittest.TestCase):
     def data(self):
         return {'channel':'stable','version':'0.1.10','source_sha':'a'*40}
+    def test_maintainer_validation_base_is_exact_and_defaults_to_source(self):
+        data=self.data()
+        self.assertEqual(m.validate(data,'ops/t3r-build/stable/test')['validation_base_sha'],data['source_sha'])
+        self.assertEqual(m.validate({**data,'validation_base_sha':'b'*40},'ops/t3r-build/stable/test')['validation_base_sha'],'b'*40)
+        for value in ('main','b'*40+'\nother=bad'):
+            with self.assertRaises(ValueError):m.validate({**data,'validation_base_sha':value},'ops/t3r-build/stable/test')
     def test_rejects_wrong_channel_branch(self):
         with self.assertRaises(ValueError): m.validate(self.data(),'ops/t3r-build/nightly/test')
     def test_rejects_untrusted_ref_and_injection(self):

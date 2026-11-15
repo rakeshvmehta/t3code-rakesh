@@ -38,6 +38,14 @@ def refresh_feed(data,root,version):
     return result
 
 
+def dump_feed(data):
+    import yaml
+    class FeedDumper(yaml.SafeDumper):
+        def increase_indent(self,flow=False,indentless=False):
+            return super().increase_indent(flow,False)
+    return yaml.dump(data,Dumper=FeedDumper,sort_keys=False)
+
+
 def run(*args):
     # Never include command arguments in exceptions: security commands contain passwords.
     process=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
@@ -97,7 +105,7 @@ def main():
             newdmg=temp/'signed.dmg'
             run('hdiutil','create','-volname',f'T3-R {args.version}','-srcfolder',str(payload),'-ov','-format','UDZO',str(newdmg))
             newzip.replace(zips[0]);newdmg.replace(dmgs[0])
-            feed.write_text(yaml.safe_dump(refresh_feed(original,root,args.version),sort_keys=False))
+            feed.write_text(dump_feed(refresh_feed(original,root,args.version)))
             for stale in root.glob('*.blockmap'):stale.unlink()
             receipt={'channel':args.channel,'version':args.version,'arch':args.arch,'candidate_sha':os.environ['GITHUB_SHA'],
                      'bundle_id':bundle,'identity':IDENTITY,'team_id':TEAM,'certificate_sha1':matches[0],

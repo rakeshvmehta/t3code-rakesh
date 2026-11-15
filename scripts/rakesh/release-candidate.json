@@ -1,5 +1,6 @@
 {
   "channel": "nightly",
-  "version": "0.1.11-nightly.20261114.3",
-  "source_sha": "1b73a3fec198f63b5ca36a1d4bb68ee6b4fd5d21"
+  "version": "0.1.11-nightly.20261115.4",
+  "source_sha": "85d97ece6ad8b8248d79e2c11215672593d1948c",
+  "validation_base_sha": "dca4b2ebeca812ea97c2220ecba28dc4397626a7"
 }

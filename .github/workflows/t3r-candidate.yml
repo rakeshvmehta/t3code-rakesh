@@ -17,6 +17,7 @@ jobs:
       channel: ${{ steps.manifest.outputs.channel }}
       version: ${{ steps.manifest.outputs.version }}
       source_sha: ${{ steps.manifest.outputs.source_sha }}
+      validation_base_sha: ${{ steps.manifest.outputs.validation_base_sha }}
     steps:
       - &id001
         name: Checkout candidate
@@ -49,10 +50,14 @@ jobs:
         run: "python3 scripts/rakesh/test_release_manifest.py
 
           python3 scripts/rakesh/test_development_signing.py"
+      - name: Install Chromium for fork browser tests
+        run: node apps/web/node_modules/playwright/cli.js install --with-deps --only-shell chromium
       - name: Validate fork changes
         env:
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
-        run: vp run check:changed "$SOURCE_SHA"
+          SOURCE_SHA: ${{ needs.prepare.outputs.validation_base_sha }}
+        run: |
+          python3 scripts/rakesh/release-manifest.py
+          vp run check:changed "$SOURCE_SHA"
       - name: Align version
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
