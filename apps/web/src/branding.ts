@@ -1,5 +1,10 @@
 import type { DesktopAppBranding } from "@t3tools/contracts";
-import { formatAppDisplayName, isRakeshNightlyVersion } from "./branding.logic";
+import {
+  formatAppDisplayName,
+  isRakeshNightlyVersion,
+  resolveHostedAppChannelLabel,
+  resolveWebAppStageLabel,
+} from "./branding.logic";
 
 function readInjectedDesktopAppBranding(): DesktopAppBranding | null {
   if (typeof window === "undefined") {
@@ -16,14 +21,17 @@ const isPersonalNightly = isRakeshNightlyVersion(APP_VERSION);
 
 export const HOSTED_APP_CHANNEL =
   hostedAppChannel === "latest" || hostedAppChannel === "nightly" ? hostedAppChannel : null;
-export const HOSTED_APP_CHANNEL_LABEL =
-  HOSTED_APP_CHANNEL === "nightly" ? "Nightly" : HOSTED_APP_CHANNEL === "latest" ? "Latest" : null;
+export const HOSTED_APP_CHANNEL_LABEL = resolveHostedAppChannelLabel(HOSTED_APP_CHANNEL);
 export const APP_BASE_NAME =
   injectedDesktopAppBranding?.baseName ?? (isPersonalNightly ? "T3-R" : "T3 Code");
 export const APP_STAGE_LABEL =
   injectedDesktopAppBranding?.stageLabel ??
-  HOSTED_APP_CHANNEL_LABEL ??
-  (isPersonalNightly ? "Nightly" : import.meta.env.DEV ? "Dev" : "Beta");
+  (isPersonalNightly
+    ? "Nightly"
+    : resolveWebAppStageLabel({
+        hostedAppChannel: HOSTED_APP_CHANNEL,
+        development: import.meta.env.DEV,
+      }));
 export const APP_DISPLAY_NAME =
   injectedDesktopAppBranding?.displayName ??
   formatAppDisplayName({ baseName: APP_BASE_NAME, stageLabel: APP_STAGE_LABEL });
