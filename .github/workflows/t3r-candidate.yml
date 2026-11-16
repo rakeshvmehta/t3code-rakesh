@@ -130,7 +130,9 @@ jobs:
     secrets: inherit
     with:
       label: macOS arm64
-      runner: macos-26
+      # Hosted by default. The repository variable selects the owner's isolated
+      # self-hosted fallback only while hosted macOS arm64 capacity is unavailable.
+      runner: ${{ vars.T3R_MAC_ARM64_RUNNER || 'macos-26' }}
       platform: mac
       target: dmg
       arch: arm64

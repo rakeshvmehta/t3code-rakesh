@@ -142,6 +142,20 @@ jobs:
       T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: ${{ inputs.clerk_cli_oauth_client_id }}
       T3CODE_RELAY_URL: ${{ inputs.relay_url }}
     steps:
+      # A self-hosted fallback runs on a personal machine. Refuse to build unless
+      # the runner was started with a throwaway HOME, so caches, the Electron
+      # profile and the launch check never touch the owner's real home or apps.
+      - name: Require isolated self-hosted home
+        if: runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          real_home="$(dscl . -read "/Users/$(id -un)" NFSHomeDirectory | awk '{print $2}')"
+          if [[ "${T3R_ISOLATED_HOME:-}" != "1" || -z "${HOME:-}" || "$HOME" == "$real_home" || "$HOME" == "$real_home/" ]]; then
+            echo "Self-hosted builds require an isolated HOME (T3R_ISOLATED_HOME=1, HOME outside the real home directory)." >&2
+            exit 1
+          fi
+          echo "Isolated HOME confirmed."
       # This repository is public, so Git needs no credentials. checkout's
       # credential cleanup runs submodule foreach even with submodules disabled,
       # which fails on the orphaned gitlinks in our vendored .repos tree.
