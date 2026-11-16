@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import type { ContextMenuItem, LocalApi } from "@t3tools/contracts";
+import type { ContextMenuItem, ContextMenuSource, LocalApi } from "@t3tools/contracts";
 import { StickyNoteIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -68,6 +68,7 @@ export function useThreadNotesController() {
       threadKey: string,
       items: ReadonlyArray<ContextMenuItem<T>>,
       position: { x: number; y: number },
+      source?: ContextMenuSource,
     ) =>
       contextMenu.show(
         withThreadNoteMenuItems(items, notes[threadKey] !== undefined).map((item) =>
@@ -76,6 +77,7 @@ export function useThreadNotesController() {
             : item,
         ),
         position,
+        source,
       ),
     handleMenu: (id: ThreadNoteMenuId, threadKey: string, title: string) => {
       if (!actions.canChangeThread(threadKey)) return;
