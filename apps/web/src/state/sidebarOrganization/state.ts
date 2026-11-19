@@ -21,7 +21,7 @@ import {
   SidebarSectionsStateSchema,
 } from "../../components/sidebarSections/sidebarSections.logic";
 import {
-  createPrimaryOrHostEnvironmentIdAtom,
+  createLocalEnvironmentIdAtom,
   hostEnvironmentIdAtom,
   primaryEnvironmentIdAtom,
 } from "../primaryEnvironment";
@@ -109,7 +109,7 @@ export const writableOrganizationEnvironmentsAtom = Atom.make((get) => {
 
 export const legacyOrganizationAtom = Atom.make(readLegacyOrganization());
 
-export const organizationEnvironmentIdAtom = createPrimaryOrHostEnvironmentIdAtom({
+export const organizationEnvironmentIdAtom = createLocalEnvironmentIdAtom({
   primaryEnvironmentIdAtom,
   hostEnvironmentIdAtom,
   catalogValueAtom: environmentCatalog.catalogValueAtom,

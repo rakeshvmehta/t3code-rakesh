@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { readLocalApi } from "../../localApi";
@@ -30,6 +31,7 @@ export function SidebarCustomSectionHeader(props: {
   onCommitName: (name: string) => void;
   onCancelEdit: () => void;
 }) {
+  const gt = useGT();
   const { menu } = props;
   const showMenu = (position: { x: number; y: number }) => {
     const api = readLocalApi();
@@ -37,10 +39,23 @@ export function SidebarCustomSectionHeader(props: {
     void api.contextMenu
       .show<SectionMenuAction>(
         [
-          { id: "rename", label: "Rename" },
-          { id: "move-up", label: "Move up", disabled: !menu.canMoveUp },
-          { id: "move-down", label: "Move down", disabled: !menu.canMoveDown },
-          { id: "delete", label: "Delete", destructive: true, separatorBefore: true },
+          { id: "rename", label: gt("Rename", { $context: "rename a sidebar section" }) },
+          {
+            id: "move-up",
+            label: gt("Move up", { $context: "move a sidebar section" }),
+            disabled: !menu.canMoveUp,
+          },
+          {
+            id: "move-down",
+            label: gt("Move down", { $context: "move a sidebar section" }),
+            disabled: !menu.canMoveDown,
+          },
+          {
+            id: "delete",
+            label: gt("Delete", { $context: "delete a sidebar section" }),
+            destructive: true,
+            separatorBefore: true,
+          },
         ],
         position,
       )
@@ -92,6 +107,7 @@ function SectionNameInput(props: {
   onCommit: (name: string) => void;
   onCancel: () => void;
 }) {
+  const gt = useGT();
   const [value, setValue] = useState(props.initialName);
   const doneRef = useRef(false);
   const finish = (commit: boolean) => {
@@ -116,7 +132,7 @@ function SectionNameInput(props: {
       <input
         autoFocus
         value={value}
-        aria-label="Section name"
+        aria-label={gt("Section name")}
         onChange={(event) => setValue(event.target.value)}
         onFocus={(event) => event.currentTarget.select()}
         onKeyDown={handleKeyDown}
