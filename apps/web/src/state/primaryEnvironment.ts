@@ -18,8 +18,8 @@ export const hostEnvironmentIdAtom = Atom.make<string | null>(null).pipe(
   Atom.withLabel("web-host-environment-id"),
 );
 
-// State owned by this app uses its primary, or the connected service sharing its T3 home.
-export function createPrimaryOrHostEnvironmentIdAtom(input: {
+// This computer's environment: the primary, else a connection to the service sharing the app's T3 home.
+export function createLocalEnvironmentIdAtom(input: {
   readonly primaryEnvironmentIdAtom: Atom.Atom<EnvironmentId | null>;
   readonly hostEnvironmentIdAtom: Atom.Atom<string | null>;
   readonly catalogValueAtom: Atom.Atom<{ readonly entries: ReadonlyMap<EnvironmentId, unknown> }>;
@@ -32,10 +32,10 @@ export function createPrimaryOrHostEnvironmentIdAtom(input: {
       if (environmentId === hostEnvironmentId) return environmentId;
     }
     return null;
-  }).pipe(Atom.withLabel("web-theme-environment-id"));
+  }).pipe(Atom.withLabel("web-local-environment-id"));
 }
 
-export const themeEnvironmentIdAtom = createPrimaryOrHostEnvironmentIdAtom({
+export const localEnvironmentIdAtom = createLocalEnvironmentIdAtom({
   primaryEnvironmentIdAtom,
   hostEnvironmentIdAtom,
   catalogValueAtom: environmentCatalog.catalogValueAtom,

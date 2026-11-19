@@ -109,6 +109,8 @@ it("shows saved host memberships, imports legacy notes and routes section/placem
     [Symbol.dispose]: () => {
       localStorage.removeItem(SIDEBAR_SECTIONS_STORAGE_KEY);
       localStorage.removeItem(THREAD_NOTES_STORAGE_KEY);
+      // This test collapses a section; later test files must start expanded.
+      localStorage.removeItem("t3code:rakesh:sidebar-collapse:v1");
     },
   };
   __setClientSettingsForTests({
