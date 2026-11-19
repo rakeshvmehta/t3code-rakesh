@@ -34,7 +34,9 @@ export function useOrganizationActions() {
   };
   const mutate = async (input: SidebarOrganizationMutation) => {
     const environmentId =
-      input.type === "thread.note" || input.type === "thread.place"
+      input.type === "thread.note" ||
+      input.type === "thread.place" ||
+      input.type === "thread.placeInCollection"
         ? targetFor(input.threadKey)
         : primary;
     if (environmentId === null || !snapshots.has(environmentId)) return false;

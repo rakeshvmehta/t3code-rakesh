@@ -3,6 +3,7 @@ import type {
   SidebarOrganizationState,
   SidebarThreadOrganization,
 } from "@t3tools/contracts/sidebarOrganization";
+import { collectionPlacements, placementForCollection } from "@t3tools/shared/sidebarOrganization";
 import { spreadOrderKeys } from "@t3tools/shared/orderKey";
 import { setThreadNote, type ThreadNotes } from "../../components/rakesh/threadNotes.logic";
 import type { SidebarSectionsState } from "../../components/sidebarSections/sidebarSections.logic";
@@ -59,7 +60,17 @@ export function composeOrganizationView(
 } {
   const threads = { ...legacy.threads };
   const merge = (key: string, record: SidebarThreadOrganization) => {
-    threads[key] = { ...threads[key], ...record };
+    threads[key] = {
+      ...threads[key],
+      ...record,
+      placements: {
+        ...collectionPlacements(threads[key]),
+        ...(record.placement === null
+          ? { [threads[key]?.placement?.collectionEnvironmentId ?? collectionEnvironmentId]: null }
+          : {}),
+        ...collectionPlacements(record),
+      },
+    };
   };
   for (const [key, record] of Object.entries(root?.threads ?? {})) merge(key, record);
   for (const [environmentId, snapshot] of Object.entries(root?.cachedEnvironments ?? {})) {
@@ -85,7 +96,8 @@ export function composeOrganizationView(
   const ranked: Array<{ key: string; orderKey: string | null }> = [];
   for (const [key, record] of Object.entries(threads)) {
     if (record.note) notes[key] = record.note;
-    const placement = record.placement;
+    const placement = placementForCollection(record, collectionEnvironmentId);
+    threads[key] = { ...record, placement };
     if (
       placement?.collectionEnvironmentId === collectionEnvironmentId &&
       activeSectionIds.has(placement.sectionId)

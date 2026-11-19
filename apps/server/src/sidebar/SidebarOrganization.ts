@@ -60,7 +60,8 @@ const make = Effect.gen(function* () {
   const storageError = (cause: unknown) =>
     new SidebarOrganizationError({ reason: "storage_unavailable", cause });
   const readFile = Effect.gen(function* () {
-    if (!(yield* fs.exists(filePath))) return EMPTY_SIDEBAR_ORGANIZATION;
+    if (!(yield* fs.exists(filePath).pipe(Effect.mapError(storageError))))
+      return EMPTY_SIDEBAR_ORGANIZATION;
     const raw = yield* fs.readFileString(filePath);
     return yield* decodeState(raw).pipe(
       Effect.mapError((cause) => new SidebarOrganizationError({ reason: "invalid_state", cause })),
@@ -83,6 +84,17 @@ const make = Effect.gen(function* () {
   const persist = Effect.fn("SidebarOrganization.persist")(function* (
     next: SidebarOrganizationState,
   ) {
+    const backupPath = `${filePath}.before-collection-placements.json`;
+    if (
+      !(yield* fs.exists(backupPath).pipe(Effect.mapError(storageError))) &&
+      (yield* fs.exists(filePath).pipe(Effect.mapError(storageError)))
+    ) {
+      yield* writeFileStringAtomically({
+        filePath: backupPath,
+        contents: yield* fs.readFileString(filePath).pipe(Effect.mapError(storageError)),
+      }).pipe(Effect.provide(io), Effect.mapError(storageError));
+      yield* fs.chmod(backupPath, 0o600).pipe(Effect.mapError(storageError));
+    }
     yield* writeFileStringAtomically({
       filePath,
       contents: yield* encodeState(next).pipe(Effect.mapError(storageError)),

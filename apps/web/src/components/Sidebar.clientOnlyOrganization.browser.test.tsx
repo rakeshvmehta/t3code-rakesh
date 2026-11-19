@@ -14,6 +14,7 @@ import { getRouter } from "~/router";
 import {
   ENVIRONMENT_ID,
   installFakeEnvironment,
+  emitSidebarMutation,
   sidebarOrganizationSnapshot,
   threadWithHistory,
   type FakeDriver,
@@ -75,6 +76,15 @@ it("shows saved host memberships, imports legacy notes and routes section/placem
       ...EMPTY_SIDEBAR_ORGANIZATION,
       sections: [{ id: "priority", name: "Priority" }],
       threads: {
+        [otherKey]: {
+          placements: {
+            "other-view": {
+              collectionEnvironmentId: "other-view",
+              sectionId: "their-section",
+              orderKey: "z",
+            },
+          },
+        },
         [savedKey]: {
           placement: {
             collectionEnvironmentId: ENVIRONMENT_ID,
@@ -143,12 +153,28 @@ it("shows saved host memberships, imports legacy notes and routes section/placem
   );
   await act(() => assign(otherKey, "priority"));
   await expect
-    .poll(() => sidebarOrganizationSnapshot()?.threads[otherKey]?.placement)
+    .poll(() => sidebarOrganizationSnapshot()?.threads[otherKey]?.placements?.[ENVIRONMENT_ID])
     .toEqual({ collectionEnvironmentId: ENVIRONMENT_ID, sectionId: "priority", orderKey: null });
   expect(sidebarOrganizationSnapshot()?.threads[savedKey]?.placement).toEqual({
     collectionEnvironmentId: ENVIRONMENT_ID,
     sectionId: "priority",
     orderKey: "a",
   });
+  await act(() =>
+    emitSidebarMutation({
+      type: "thread.placeInCollection",
+      threadKey: otherKey,
+      collectionEnvironmentId: "other-view",
+      placement: null,
+    }),
+  );
+  await header.first().click();
+  await expect.element(header.first()).toHaveTextContent("Priority (2)");
+  expect(
+    sidebarOrganizationSnapshot()?.threads[otherKey]?.placements?.[ENVIRONMENT_ID]?.sectionId,
+  ).toBe("priority");
+  await act(() => assign(otherKey, null));
+  await expect.element(header.first()).toHaveTextContent("Priority (1)");
+  expect(sidebarOrganizationSnapshot()?.threads[otherKey]?.placements?.["other-view"]).toBeNull();
   expect(localStorage.getItem(SIDEBAR_SECTIONS_STORAGE_KEY)).toBe(legacy);
 });

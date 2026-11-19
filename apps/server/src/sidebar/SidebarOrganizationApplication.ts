@@ -33,7 +33,16 @@ const make = Effect.gen(function* () {
     input: SidebarOrganizationMutation,
     beforeCommit: Effect.Effect<unknown, E> = Effect.void,
   ): Effect.fn.Return<SidebarOrganizationState, SidebarOrganizationError | E> {
-    if (input.type !== "thread.note" && input.type !== "thread.place")
+    if (input.type === "section.delete")
+      return yield* store.mutate(
+        { ...input, collectionEnvironmentId: yield* identity.getEnvironmentId },
+        beforeCommit,
+      );
+    if (
+      input.type !== "thread.note" &&
+      input.type !== "thread.place" &&
+      input.type !== "thread.placeInCollection"
+    )
       return yield* store.mutate(input, beforeCommit);
     const environmentId = yield* identity.getEnvironmentId;
     const prefix = `${environmentId}:`;

@@ -20,6 +20,9 @@ export type SidebarThreadPlacement = typeof SidebarThreadPlacement.Type;
 export const SidebarThreadOrganization = Schema.Struct({
   note: Schema.optionalKey(Schema.NullOr(Schema.String.check(Schema.isMaxLength(500)))),
   placement: Schema.optionalKey(Schema.NullOr(SidebarThreadPlacement)),
+  placements: Schema.optionalKey(
+    Schema.Record(Schema.String, Schema.NullOr(SidebarThreadPlacement)),
+  ),
 });
 export type SidebarThreadOrganization = typeof SidebarThreadOrganization.Type;
 
@@ -59,12 +62,22 @@ export const EMPTY_SIDEBAR_ORGANIZATION: SidebarOrganizationState = {
 export const SidebarOrganizationMutation = Schema.Union([
   Schema.Struct({ type: Schema.Literal("section.create"), id: SectionId, name: SectionName }),
   Schema.Struct({ type: Schema.Literal("section.rename"), id: SectionId, name: SectionName }),
-  Schema.Struct({ type: Schema.Literal("section.delete"), id: SectionId }),
+  Schema.Struct({
+    type: Schema.Literal("section.delete"),
+    id: SectionId,
+    collectionEnvironmentId: Schema.optionalKey(Schema.String),
+  }),
   Schema.Struct({ type: Schema.Literal("section.reorder"), sectionIds: Schema.Array(SectionId) }),
   Schema.Struct({
     type: Schema.Literal("thread.note"),
     threadKey: ThreadKey,
     note: Schema.NullOr(Schema.String.check(Schema.isMaxLength(500))),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("thread.placeInCollection"),
+    threadKey: ThreadKey,
+    collectionEnvironmentId: Schema.String,
+    placement: Schema.NullOr(SidebarThreadPlacement),
   }),
   Schema.Struct({
     type: Schema.Literal("thread.place"),
@@ -92,12 +105,15 @@ export class SidebarOrganizationError extends Schema.TaggedError<SidebarOrganiza
       "invalid_order",
       "thread_not_found",
       "wrong_environment",
+      "collection_required",
     ]),
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
   override get message(): string {
     switch (this.reason) {
+      case "collection_required":
+        return "Update this client before clearing a section; the viewing environment must be specified.";
       case "thread_not_found":
         return "The thread no longer exists.";
       case "wrong_environment":
@@ -155,6 +171,7 @@ export const SidebarThreadSectionMcpInput = Schema.Struct({
 });
 export type SidebarThreadSectionMcpInput = typeof SidebarThreadSectionMcpInput.Type;
 export const SidebarThreadSectionMcpResult = Schema.Struct({
+  placementScope: Schema.optionalKey(Schema.Literal("collection")),
   threadId: ThreadId,
   placement: Schema.NullOr(SidebarThreadPlacement),
   sectionExists: Schema.NullOr(Schema.Boolean),

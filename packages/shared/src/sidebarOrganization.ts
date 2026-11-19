@@ -3,8 +3,27 @@ import {
   type SidebarOrganizationImport,
   type SidebarOrganizationMutation,
   type SidebarOrganizationState,
+  type SidebarThreadOrganization,
 } from "@t3tools/contracts/sidebarOrganization";
 import * as Effect from "effect/Effect";
+
+export function collectionPlacements(record: SidebarThreadOrganization | undefined) {
+  return {
+    ...(record?.placement ? { [record.placement.collectionEnvironmentId]: record.placement } : {}),
+    ...record?.placements,
+  };
+}
+
+export function placementForCollection(
+  record: SidebarThreadOrganization | undefined,
+  collectionEnvironmentId: string,
+) {
+  if (record?.placements && Object.hasOwn(record.placements, collectionEnvironmentId))
+    return record.placements[collectionEnvironmentId] ?? null;
+  return record?.placement?.collectionEnvironmentId === collectionEnvironmentId
+    ? record.placement
+    : null;
+}
 
 export const applySidebarOrganizationMutation = Effect.fn("applySidebarOrganizationMutation")(
   function* (current: SidebarOrganizationState, input: SidebarOrganizationMutation) {
@@ -42,7 +61,27 @@ export const applySidebarOrganizationMutation = Effect.fn("applySidebarOrganizat
           threads: Object.fromEntries(
             Object.entries(current.threads).map(([key, record]) => [
               key,
-              record.placement?.sectionId === input.id ? { ...record, placement: null } : record,
+              {
+                ...record,
+                ...(record.placement?.sectionId === input.id &&
+                (input.collectionEnvironmentId === undefined ||
+                  record.placement.collectionEnvironmentId === input.collectionEnvironmentId)
+                  ? { placement: null }
+                  : {}),
+                ...(record.placements
+                  ? {
+                      placements: Object.fromEntries(
+                        Object.entries(record.placements).map(([owner, placement]) => [
+                          owner,
+                          owner === input.collectionEnvironmentId &&
+                          placement?.sectionId === input.id
+                            ? null
+                            : placement,
+                        ]),
+                      ),
+                    }
+                  : {}),
+              },
             ]),
           ),
         };
@@ -71,18 +110,42 @@ export const applySidebarOrganizationMutation = Effect.fn("applySidebarOrganizat
           },
         };
         break;
-      case "thread.place":
+      case "thread.placeInCollection":
+      case "thread.place": {
+        if (input.type === "thread.place" && input.placement === null)
+          return yield* new SidebarOrganizationError({ reason: "collection_required" });
+        const record = current.threads[input.threadKey];
+        const owner =
+          input.type === "thread.placeInCollection"
+            ? input.collectionEnvironmentId
+            : (input.placement?.collectionEnvironmentId ??
+              record?.placement?.collectionEnvironmentId);
+        if (
+          input.type === "thread.placeInCollection" &&
+          input.placement !== null &&
+          input.placement.collectionEnvironmentId !== owner
+        )
+          return yield* new SidebarOrganizationError({ reason: "wrong_environment" });
+        const placements = {
+          ...(record?.placement
+            ? { [record.placement.collectionEnvironmentId]: record.placement }
+            : {}),
+          ...record?.placements,
+          ...(owner === undefined ? {} : { [owner]: input.placement }),
+        };
         next = {
           ...current,
           threads: {
             ...current.threads,
             [input.threadKey]: {
               ...current.threads[input.threadKey],
-              placement: input.placement,
+              ...(input.type === "thread.place" ? { placement: input.placement } : {}),
+              placements,
             },
           },
         };
         break;
+      }
     }
     return {
       ...next,
@@ -117,6 +180,15 @@ export function applySidebarOrganizationImport(
       ...record,
       ...(placement === undefined ? {} : { placement }),
       ...existing,
+      placements: {
+        ...collectionPlacements({
+          ...record,
+          ...(placement === undefined
+            ? {}
+            : { placement: existing.placement === null ? null : placement }),
+        }),
+        ...collectionPlacements(existing),
+      },
     };
   }
   return {

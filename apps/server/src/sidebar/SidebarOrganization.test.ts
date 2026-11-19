@@ -19,6 +19,52 @@ const testLayer = SidebarOrganization.layer.pipe(
 );
 
 describe("shared sidebar persistence", () => {
+  it.effect(
+    "backs up legacy data before scoped writes and retains both placements after restart",
+    () =>
+      Effect.gen(function* () {
+        const config = yield* ServerConfig.ServerConfig;
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const file = path.join(config.stateDir, "sidebar-organization.json");
+        const original = JSON.stringify({
+          version: 1,
+          revision: 1,
+          threadRevision: 1,
+          sections: [],
+          deletedSectionIds: [],
+          importedSources: [],
+          cachedEnvironments: {},
+          threads: {
+            "local:one": {
+              placement: { collectionEnvironmentId: "mac", sectionId: "work", orderKey: "a" },
+            },
+          },
+        });
+        yield* fs.writeFileString(file, original);
+        const store = yield* SidebarOrganization.SidebarOrganization;
+        yield* store.mutate({
+          type: "thread.placeInCollection",
+          threadKey: "local:one",
+          collectionEnvironmentId: "pc",
+          placement: { collectionEnvironmentId: "pc", sectionId: "mac", orderKey: "b" },
+        });
+        expect(yield* fs.readFileString(file + ".before-collection-placements.json")).toBe(
+          original,
+        );
+        yield* store.mutate({ type: "thread.note", threadKey: "local:one", note: "Preserved" });
+        expect(yield* fs.readFileString(file + ".before-collection-placements.json")).toBe(
+          original,
+        );
+        const restarted = yield* SidebarOrganization.SidebarOrganization.pipe(
+          Effect.flatMap((fresh) => fresh.snapshot),
+          Effect.provide(SidebarOrganization.layer),
+        );
+        expect(restarted.threads["local:one"]?.placements?.["mac"]?.sectionId).toBe("work");
+        expect(restarted.threads["local:one"]?.placements?.["pc"]?.sectionId).toBe("mac");
+      }).pipe(Effect.provide(testLayer)),
+  );
+
   it.effect("preserves independent concurrent note edits and section placement", () =>
     Effect.gen(function* () {
       const store = yield* SidebarOrganization.SidebarOrganization;
