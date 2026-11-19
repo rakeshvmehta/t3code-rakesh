@@ -1,6 +1,7 @@
 import {
   SidebarSectionsMcpInput,
   SidebarSectionsMcpResult,
+  SidebarThreadSectionMcpResult,
 } from "@t3tools/contracts/sidebarOrganization";
 import {
   type EnvironmentId,
@@ -189,6 +190,23 @@ const make = Effect.gen(function* () {
             threadId: caller.id,
             title: caller.title,
           };
+    // Old peers accept the same tool but overwrite one global placement.
+    if (toolName === "t3_thread_section" && args.action === "move") {
+      const support = yield* peers.call({
+        environmentId,
+        tool: toolName,
+        arguments: { ...args, action: "read" },
+        limits,
+        ...(sender === undefined ? {} : { sender }),
+        success: SidebarThreadSectionMcpResult,
+      });
+      if (support.placementScope !== "collection")
+        return yield* new OrchestratorMcpFailure({
+          code: "invalid_request",
+          message:
+            "Update the thread's environment before changing its sidebar section; it does not support independent collections yet.",
+        });
+    }
     return yield* peers.call({
       environmentId,
       tool: toolName,

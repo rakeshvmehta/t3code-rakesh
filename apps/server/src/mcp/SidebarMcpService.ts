@@ -1,3 +1,4 @@
+import { placementForCollection } from "@t3tools/shared/sidebarOrganization";
 import { uniqueOrderKeyBetween } from "@t3tools/shared/orderKey";
 import { EnvironmentId, OrchestratorMcpFailure, type ThreadId } from "@t3tools/contracts";
 import {
@@ -200,10 +201,17 @@ const make = Effect.gen(function* () {
     const key = `${scope.environmentId}:${thread.id}`;
     const caller = yield* withScope(scope, readCaller());
     const receivedLink = callerLinkOrigin(caller) !== undefined;
+    const owner = input.collectionEnvironmentId ?? scope.environmentId;
     if (input.action === "read") {
       const state = yield* store.snapshot.pipe(Effect.mapError(mapFailure));
-      const saved = state.threads[key]?.placement ?? null;
-      if (saved === null) return { threadId: thread.id, placement: null, sectionExists: false };
+      const saved = placementForCollection(state.threads[key], owner);
+      if (saved === null)
+        return {
+          placementScope: "collection" as const,
+          threadId: thread.id,
+          placement: null,
+          sectionExists: false,
+        };
       const listing =
         saved.collectionEnvironmentId === scope.environmentId
           ? { sections: state.sections }
@@ -217,13 +225,13 @@ const make = Effect.gen(function* () {
           ? null
           : listing.sections.some((section) => section.id === saved.sectionId);
       return {
+        placementScope: "collection" as const,
         threadId: thread.id,
         placement: exists === false ? null : saved,
         sectionExists: exists,
       };
     }
     const sectionId = yield* required(input.sectionId, "sectionId (null for Chats)");
-    const owner = input.collectionEnvironmentId ?? scope.environmentId;
     let sectionExists: boolean | null = sectionId !== null;
     if (sectionId !== null) {
       if (owner !== scope.environmentId && scope.linkedEnvironments === false)
@@ -252,16 +260,15 @@ const make = Effect.gen(function* () {
         });
     }
     const previous = yield* store.snapshot.pipe(Effect.mapError(mapFailure));
-    const existing = previous.threads[key]?.placement;
+    const existing = placementForCollection(previous.threads[key], owner);
     const lastKey =
       Object.values(previous.threads)
-        .flatMap((record) =>
-          record.placement?.collectionEnvironmentId === owner &&
-          record.placement.sectionId === sectionId &&
-          record.placement.orderKey !== null
-            ? [record.placement.orderKey]
-            : [],
-        )
+        .flatMap((record) => {
+          const placement = placementForCollection(record, owner);
+          return placement?.sectionId === sectionId && placement.orderKey !== null
+            ? [placement.orderKey]
+            : [];
+        })
         .sort()
         .at(-1) ?? null;
     const orderKey =
@@ -271,7 +278,8 @@ const make = Effect.gen(function* () {
     const state = yield* app
       .mutate(
         {
-          type: "thread.place",
+          type: "thread.placeInCollection",
+          collectionEnvironmentId: owner,
           threadKey: key,
           placement:
             sectionId === null
@@ -286,8 +294,9 @@ const make = Effect.gen(function* () {
       )
       .pipe(Effect.mapError(mapFailure));
     return {
+      placementScope: "collection" as const,
       threadId: thread.id,
-      placement: state.threads[key]?.placement ?? null,
+      placement: placementForCollection(state.threads[key], owner),
       sectionExists,
     };
   });

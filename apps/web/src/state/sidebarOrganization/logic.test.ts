@@ -59,3 +59,50 @@ describe("shared organization migration and projection", () => {
     expect(threadEnvironmentForKey("unknown:thread", ["main"])).toBeNull();
   });
 });
+
+describe("independent sidebar collections", () => {
+  it("shows each collection's own placement and does not resurrect an explicit clear", () => {
+    const mac = { collectionEnvironmentId: "mac", sectionId: "work", orderKey: "a" };
+    const pc = { collectionEnvironmentId: "pc", sectionId: "work", orderKey: "b" };
+    const record = { placement: mac, placements: { mac, pc } };
+    const root = { ...EMPTY_SIDEBAR_ORGANIZATION, sections: [{ id: "work", name: "Work" }] };
+    const peer = { ...EMPTY_SIDEBAR_ORGANIZATION, threads: { "mac:chat": record } };
+    const legacy = { sourceId: "empty", sections: [], threads: {} };
+    expect(
+      composeOrganizationView("pc", root, new Map([["mac", peer]]), legacy).sections.assignments[
+        "mac:chat"
+      ],
+    ).toBe("work");
+    const cleared = {
+      ...peer,
+      threads: { "mac:chat": { ...record, placements: { mac: null, pc } } },
+    };
+    expect(
+      composeOrganizationView("mac", { ...root, threads: cleared.threads }, new Map(), legacy)
+        .sections.assignments,
+    ).toEqual({});
+    expect(
+      composeOrganizationView("pc", root, new Map([["mac", cleared]]), legacy).sections.assignments[
+        "mac:chat"
+      ],
+    ).toBe("work");
+  });
+});
+
+it("honors old-server clears over cached and local legacy placements", () => {
+  const legacy = buildLegacyImport("profile", "main", legacySections, {});
+  const root = {
+    ...EMPTY_SIDEBAR_ORGANIZATION,
+    sections: legacy.sections,
+    threads: legacy.threads,
+  };
+  const peer = {
+    ...EMPTY_SIDEBAR_ORGANIZATION,
+    threads: { "peer:same": { placement: null, placements: {} } },
+  };
+  expect(
+    composeOrganizationView("main", root, new Map([["peer", peer]]), legacy).sections.assignments[
+      "peer:same"
+    ],
+  ).toBeUndefined();
+});

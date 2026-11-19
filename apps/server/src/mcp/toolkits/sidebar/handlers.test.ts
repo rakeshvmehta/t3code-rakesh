@@ -94,12 +94,12 @@ it.effect("tools create a section, place a thread, and read/set/clear its full n
       .pipe(Stream.unwrap, Stream.runCollect);
     expect((yield* store.snapshot).threads["local:target"]).toMatchObject({
       note: null,
-      placement: { sectionId },
+      placements: { local: { sectionId } },
     });
     yield* toolkit
       .handle("t3_thread_section", { action: "move", threadId: targetId, sectionId: null })
       .pipe(Stream.unwrap, Stream.runCollect);
-    expect((yield* store.snapshot).threads["local:target"]?.placement).toBeNull();
+    expect((yield* store.snapshot).threads["local:target"]?.placements?.["local"]).toBeNull();
   }).pipe(
     Effect.provide(layer),
     Effect.provideService(McpInvocationContext.McpInvocationContext, scope()),
@@ -301,7 +301,11 @@ it.effect(
         placement: { collectionEnvironmentId: "offline", sectionId: "saved", orderKey: "m" },
       });
       const read = yield* toolkit
-        .handle("t3_thread_section", { action: "read", threadId: targetId })
+        .handle("t3_thread_section", {
+          action: "read",
+          threadId: targetId,
+          collectionEnvironmentId: EnvironmentId.make("offline"),
+        })
         .pipe(Stream.unwrap, Stream.runCollect);
       expect(read.at(-1)?.result).toMatchObject({
         placement: { sectionId: "saved" },
@@ -341,6 +345,12 @@ it.effect.each(["auto", "full-access"] as const)(
       });
       yield* Effect.gen(function* () {
         const toolkit = yield* SidebarToolkit;
+        const storeBefore = yield* Organization.SidebarOrganization;
+        yield* storeBefore.mutate({
+          type: "thread.place",
+          threadKey: "local:target",
+          placement: { collectionEnvironmentId: "local", sectionId: "local-work", orderKey: "a" },
+        });
         const moved = yield* toolkit
           .handle("t3_thread_section", {
             action: "move",
@@ -354,7 +364,21 @@ it.effect.each(["auto", "full-access"] as const)(
           sectionExists: null,
         });
         const store = yield* Organization.SidebarOrganization;
-        expect((yield* store.snapshot).threads["local:target"]?.placement?.sectionId).toBe("work");
+        expect(
+          (yield* store.snapshot).threads["local:target"]?.placements?.["main"]?.sectionId,
+        ).toBe("work");
+        yield* toolkit
+          .handle("t3_thread_section", {
+            action: "move",
+            threadId: targetId,
+            collectionEnvironmentId: EnvironmentId.make("main"),
+            sectionId: null,
+          })
+          .pipe(Stream.unwrap, Stream.runCollect);
+        expect((yield* store.snapshot).threads["local:target"]?.placements?.["main"]).toBeNull();
+        expect(
+          (yield* store.snapshot).threads["local:target"]?.placements?.["local"]?.sectionId,
+        ).toBe("local-work");
       }).pipe(
         Effect.provide(makeLayer(threadLayer)),
         Effect.provideService(McpInvocationContext.McpInvocationContext, linkedScope),

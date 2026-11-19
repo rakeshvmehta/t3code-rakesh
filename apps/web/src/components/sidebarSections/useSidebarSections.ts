@@ -33,9 +33,10 @@ export function useSidebarSections(_activeKeys: readonly string[]) {
     chatsCollapsed: collapse[`${actions.primary}:chats`] ?? legacy.sections.chatsCollapsed,
   };
   const assign = (threadKey: string, sectionId: string | null, orderKey: string | null = null) => {
-    if (sectionId !== null && actions.primary === null) return Promise.resolve(false);
+    if (actions.primary === null) return Promise.resolve(false);
     return actions.mutate({
-      type: "thread.place",
+      type: "thread.placeInCollection",
+      collectionEnvironmentId: actions.primary,
       threadKey,
       placement:
         sectionId === null || actions.primary === null
