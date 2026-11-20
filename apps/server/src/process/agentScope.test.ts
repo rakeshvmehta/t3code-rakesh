@@ -67,11 +67,13 @@ const withFakeSystemd = <A, E>(
     stopFails = false,
     leftovers = false,
     liveOwner = false,
+    environment = {},
   }: {
     readonly oomPolicy?: boolean;
     readonly stopFails?: boolean;
     readonly leftovers?: boolean;
     readonly liveOwner?: boolean;
+    readonly environment?: Readonly<Record<string, string>>;
   } = {},
 ) =>
   Effect.gen(function* () {
@@ -129,7 +131,11 @@ const withFakeSystemd = <A, E>(
       Effect.provideService(ProviderProcesses.ProviderProcesses, { hasOtherLiveOwner: liveOwner }),
       Effect.provideService(ProcessRunner.ProcessRunner, runner),
       Effect.provideService(HostProcess.Platform, "linux"),
-      Effect.provideService(HostProcess.Environment, { PATH: bin, XDG_RUNTIME_DIR: "/run/user/1" }),
+      Effect.provideService(HostProcess.Environment, {
+        PATH: bin,
+        XDG_RUNTIME_DIR: "/run/user/1",
+        ...environment,
+      }),
       Effect.provideService(FileSystem.FileSystem, {
         ...fileSystem,
         readFileString: (path, encoding) =>
@@ -371,6 +377,34 @@ describe("AgentScope service", () => {
         expect(memoryLimits().at(-1)).toEqual(["MemoryHigh=infinity", `MemoryMax=${18 * GiB}`]);
         memory.swapKb = 2 * 1024 ** 2;
       }),
+    );
+  });
+
+  it.effect("applies an explicit percentage policy and keeps it when RAM changes", () => {
+    memory.total = 4 * GiB;
+    return withFakeSystemd(
+      ({ scope, calls }) =>
+        Effect.gen(function* () {
+          const launch = scope.wrap({ command: "agent", args: [], name: "t", threadId: "a" });
+          const limits = () =>
+            calls
+              .filter(
+                ([, verb, , slice]) =>
+                  verb === "set-property" && slice === "app-t3code-agents.slice",
+              )
+              .map((args) => args.slice(4));
+          yield* launch;
+          expect(limits().at(-1)).toEqual(["MemoryHigh=infinity", `MemoryMax=${3 * GiB}`]);
+          memory.total = 12 * GiB;
+          yield* launch;
+          expect(limits().at(-1)).toEqual(["MemoryHigh=infinity", "MemoryMax=10952163328"]);
+        }),
+      {
+        environment: {
+          T3CODE_AGENT_MEMORY_MAX_PERCENT: "85",
+          T3CODE_AGENT_MEMORY_MIN_RESERVE_MIB: "1024",
+        },
+      },
     );
   });
 

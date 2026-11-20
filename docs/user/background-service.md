@@ -203,3 +203,22 @@ is gone, a version before 0.1.0 starts with no threads or settings. It does
 not offer to delete it while any project or thread you have not deleted is
 missing from the current database, so the old file stays available for
 recovery.
+
+### Dedicated Linux coding machines
+
+To give agents a percentage-based hard memory cap without soft reclaim throttling,
+add these settings to `~/.t3/service.env` and restart the service when its tasks are idle:
+
+```sh
+T3CODE_AGENT_MEMORY_MAX_PERCENT=85
+T3CODE_AGENT_MEMORY_MIN_RESERVE_MIB=1024
+```
+
+The cap uses usable system RAM and leaves at least the specified reserve for the
+operating system and T3 server. It is recalculated on the next agent launch after
+RAM changes. These settings apply to all T3 agent scopes in the same user session.
+They do not create a 70% throttle; monitoring warnings are configured separately.
+The percentage must be greater than 0 and less than 100; the reserve must be an
+integer of at least 1024 MiB (default 1024). Invalid settings, or a reserve leaving
+less than 256 MiB for agents, retain the default protective limits and log a warning.
+Removing both settings restores the default policy after a service restart.

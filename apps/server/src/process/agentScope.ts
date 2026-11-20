@@ -18,6 +18,7 @@ import * as Semaphore from "effect/Semaphore";
 
 import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import { resolveAgentMemoryLimits } from "./agentMemoryPolicy.ts";
 import * as ProviderProcesses from "./providerProcesses.ts";
 
 const AGENT_SLICE = "app-t3code-agents.slice";
@@ -31,20 +32,6 @@ const AGENTS_PARENT_PROPERTIES = ["CPUWeight=10", "IOWeight=10", "TasksMax=25%"]
 export function ownedAgentSlice(stateDir: string): string {
   const hash = NodeCrypto.createHash("sha256").update(stateDir).digest("hex").slice(0, 12);
   return `app-t3code-agents-${hash}.slice`;
-}
-
-const GiB = 1024 ** 3;
-
-/**
- * Agents leave about 6 GB free before throttling and 4 GB before an OOM kill (at
- * least half and three quarters of RAM go to agents) so the server and sshd keep
- * working. Without swap, MemoryHigh stalls every agent and never reaches the kill.
- */
-function agentSliceMemoryLimits(totalBytes: number, hasSwap: boolean) {
-  return {
-    high: hasSwap ? Math.max(totalBytes - 6 * GiB, Math.floor(totalBytes / 2)) : "infinity",
-    max: Math.max(totalBytes - 4 * GiB, Math.floor(totalBytes * 0.75)),
-  };
 }
 
 export interface ScopeState {
@@ -216,7 +203,8 @@ export const make = Effect.gen(function* () {
           const total = NodeOS.totalmem();
           const hasSwap = yield* readHasSwap;
           if (total === appliedTotal && hasSwap === appliedHasSwap) return;
-          const limits = agentSliceMemoryLimits(total, hasSwap);
+          const limits = resolveAgentMemoryLimits(total, hasSwap, hostEnvironment);
+          if (limits.warning) yield* Effect.logWarning(limits.warning);
           const applied = yield* setProperties(AGENT_SLICE, [
             `MemoryHigh=${limits.high}`,
             `MemoryMax=${limits.max}`,
@@ -238,7 +226,7 @@ export const make = Effect.gen(function* () {
       yield* setProperties(AGENTS_PARENT_SLICE, AGENTS_PARENT_PROPERTIES);
       yield* Effect.logInfo("Agent scopes are on", {
         slice: AGENT_SLICE,
-        ...agentSliceMemoryLimits(NodeOS.totalmem(), yield* readHasSwap),
+        ...resolveAgentMemoryLimits(NodeOS.totalmem(), yield* readHasSwap, hostEnvironment),
         oomPolicy: supportsOomPolicy,
       });
       return {
