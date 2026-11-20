@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { ContextMenuItem, ContextMenuSource, LocalApi } from "@t3tools/contracts";
+import { useGT } from "gt-react";
 import { StickyNoteIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -110,6 +111,7 @@ function ThreadNoteDialog({
   initialNote: string;
   onClose: (note: string | null) => Promise<void>;
 }) {
+  const gt = useGT();
   const [note, setNote] = useState(initialNote);
   const [saving, setSaving] = useState(false);
   const remaining = THREAD_NOTE_MAX_LENGTH - note.length;
@@ -130,15 +132,15 @@ function ThreadNoteDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>{initialNote ? "Edit note" : "Add note"}</DialogTitle>
+            <DialogTitle>{initialNote ? gt("Edit note") : gt("Add note")}</DialogTitle>
             <DialogDescription>{title}</DialogDescription>
           </DialogHeader>
           <DialogPanel>
             <Textarea
               autoFocus
               disabled={saving}
-              aria-label="Note"
-              placeholder="e.g. Done, but blocked until staging is back up"
+              aria-label={gt("Note", { $context: "a short note attached to a thread" })}
+              placeholder={gt("e.g. Done, but blocked until staging is back up")}
               maxLength={THREAD_NOTE_MAX_LENGTH}
               value={note}
               onChange={(event) => setNote(event.target.value)}
@@ -152,7 +154,10 @@ function ThreadNoteDialog({
             />
             {remaining <= 100 && (
               <p className="mt-1.5 text-right text-xs text-muted-foreground">
-                {remaining} characters left
+                {gt(
+                  "{remaining, plural, one {{remaining} character left} other {{remaining} characters left}}",
+                  { remaining },
+                )}
               </p>
             )}
           </DialogPanel>
@@ -163,10 +168,10 @@ function ThreadNoteDialog({
               disabled={saving}
               onClick={() => void onClose(null)}
             >
-              Cancel
+              {gt("Cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              Save
+              {gt("Save")}
             </Button>
           </DialogFooter>
         </form>

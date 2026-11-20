@@ -1,5 +1,8 @@
 import type { ContextMenuItem } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 // The old browser key remains a migration source for shared thread reminders.
 export const THREAD_NOTES_STORAGE_KEY = "t3code:rakesh:thread-notes:v1";
@@ -45,11 +48,16 @@ export function isThreadNoteMenuId(id: string): id is ThreadNoteMenuId {
 export function withThreadNoteMenuItems<T extends string>(
   items: ReadonlyArray<ContextMenuItem<T>>,
   hasNote: boolean,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<ContextMenuItem<T | ThreadNoteMenuId>> {
   const noteItems: ContextMenuItem<ThreadNoteMenuId>[] = [
-    { id: "rakesh-note:edit", label: hasNote ? "Edit note…" : "Add note…", icon: "pencil" },
+    {
+      id: "rakesh-note:edit",
+      label: hasNote ? resolve(msg("Edit note…")) : resolve(msg("Add note…")),
+      icon: "pencil",
+    },
   ];
-  if (hasNote) noteItems.push({ id: "rakesh-note:clear", label: "Clear note" });
+  if (hasNote) noteItems.push({ id: "rakesh-note:clear", label: resolve(msg("Clear note")) });
   const renameIndex = items.findIndex((item) => item.id === "rename");
   const at = renameIndex === -1 ? items.length : renameIndex + 1;
   return [...items.slice(0, at), ...noteItems, ...items.slice(at)];
