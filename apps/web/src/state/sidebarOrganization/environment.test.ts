@@ -5,7 +5,7 @@ import {
 } from "@t3tools/contracts/sidebarOrganization";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
-import { createPrimaryOrHostEnvironmentIdAtom } from "../primaryEnvironment";
+import { createLocalEnvironmentIdAtom } from "../primaryEnvironment";
 import { buildLegacyImport, composeOrganizationView } from "./logic";
 
 const MAC = EnvironmentId.make("mac");
@@ -17,7 +17,7 @@ describe("organization collection on a client-only desktop", () => {
     const registry = AtomRegistry.make();
     using _registry = { [Symbol.dispose]: () => registry.dispose() };
     const collection = registry.get(
-      createPrimaryOrHostEnvironmentIdAtom({
+      createLocalEnvironmentIdAtom({
         primaryEnvironmentIdAtom: Atom.make(null),
         hostEnvironmentIdAtom: Atom.make("mac"),
         catalogValueAtom: Atom.make({
@@ -88,7 +88,7 @@ describe("organization collection on a client-only desktop", () => {
         [MAC, null],
       ]),
     });
-    const collection = createPrimaryOrHostEnvironmentIdAtom({
+    const collection = createLocalEnvironmentIdAtom({
       primaryEnvironmentIdAtom: primary,
       hostEnvironmentIdAtom: host,
       catalogValueAtom: catalog,
