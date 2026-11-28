@@ -633,6 +633,7 @@ const session: EnvironmentConnectionLease["session"] = {
   ready: Effect.void,
   probe: Effect.void,
   inboundFrames: Effect.succeed(0),
+  awaitingReply: Effect.succeed(false),
   closed: Effect.never,
 };
 
